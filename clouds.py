@@ -39,7 +39,7 @@ class _Cloud:
         self.width = cx + self.bumps[-1][2]
 
         # ── rain ──────────────────────────────────────────────────────────
-        self.has_rain = rng.random() < 0.55
+        self.has_rain = rng.random() < 0.1
         self.drops    = []   # (dx, length, phase, speed)
         if self.has_rain:
             n_drops = rng.randint(8, 18)
