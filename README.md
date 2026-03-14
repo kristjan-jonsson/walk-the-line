@@ -1,2 +1,2 @@
 # walk-the-line
-Rhysics line walking game
+Line walking game
