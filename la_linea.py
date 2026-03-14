@@ -61,14 +61,14 @@ class SoundEngine:
 
     # ── individual sound builders ─────────────────────────────────────────
 
-    @classmethod
-    def _footstep(cls):
-        """Soft papery tap."""
-        n = int(cls.SR * 0.035)
-        rng = random.Random(42)
-        return cls._pack(
-            (rng.uniform(-1, 1) * max(0, 1 - i / n) ** 2 * 0.18
-             for i in range(n)))
+    # @classmethod
+    # def _footstep(cls):
+    #     """Soft papery tap."""
+    #     n = int(cls.SR * 0.035)
+    #     rng = random.Random(42)
+    #     return cls._pack(
+    #         (rng.uniform(-1, 1) * max(0, 1 - i / n) ** 2 * 0.18
+    #          for i in range(n)))
 
     # @classmethod
     # def _jump(cls):
@@ -229,7 +229,7 @@ class SoundEngine:
     # ── public API ────────────────────────────────────────────────────────
 
     def __init__(self):
-        self.snd_footstep = self._footstep()
+        # self.snd_footstep = self._footstep()
         # self.snd_jump     = self._jump()
         self.snd_land     = self._land()
         self.snd_star     = self._star_ding()
@@ -257,7 +257,8 @@ class SoundEngine:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def draw_terrain(surface, segments, walls, cam_x):
-    for seg in segments:
+    sorted_segs = sorted(segments, key=lambda s: s.x1)
+    for idx, seg in enumerate(sorted_segs):
         if seg.x2 - cam_x < -50 or seg.x1 - cam_x > SCREEN_W + 50:
             continue
         # Connect every adjacent pair of spring nodes — one continuous chain
@@ -269,6 +270,16 @@ def draw_terrain(surface, segments, walls, cam_x):
             pygame.draw.line(surface, WHITE,
                              (ax, int(seg.y[i])),
                              (bx, int(seg.y[i + 1])), 4)
+        # Draw connector to the next segment when they share a junction (no gap).
+        if idx + 1 < len(sorted_segs):
+            nxt = sorted_segs[idx + 1]
+            if nxt.x1 - seg.x2 < 2:   # adjacent, not a gap
+                ax = int(seg.nx[-1]  - cam_x)
+                bx = int(nxt.nx[0]   - cam_x)
+                if -4 <= bx <= SCREEN_W + 4 or -4 <= ax <= SCREEN_W + 4:
+                    pygame.draw.line(surface, WHITE,
+                                     (ax, int(seg.y[-1])),
+                                     (bx, int(nxt.y[0])), 4)
 
     for wall in walls:
         wx, wy, ww, wh = wall
@@ -406,7 +417,7 @@ def main():
             # ── sound events ──────────────────────────────────────────────
             # if char.ev_jump:  sounds.play(sounds.snd_jump,  0.7)
             if char.ev_land:  sounds.play(sounds.snd_land,  0.6)
-            if char.ev_step:  sounds.play(sounds.snd_footstep, 0.5)
+            # if char.ev_step:  sounds.play(sounds.snd_footstep, 0.5)
             if char.ev_star:  sounds.play(sounds.snd_star,  0.9)
             if char.ev_die:   sounds.play(sounds.snd_die,   0.8)
             char.ev_jump = char.ev_land = char.ev_step = char.ev_star = char.ev_die = False

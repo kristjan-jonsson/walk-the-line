@@ -63,6 +63,9 @@ class SpringLine:
         for i in range(n):
             self.vy[i] = (self.vy[i] + acc[i]) * self.DAMPING
             self.y[i] += self.vy[i]
+        # Pin endpoints so adjacent segments never diverge at their shared junction.
+        self.y[0]  = self.ry[0];  self.vy[0]  = 0.0
+        self.y[-1] = self.ry[-1]; self.vy[-1] = 0.0
 
     @classmethod
     def from_path(cls, points):
