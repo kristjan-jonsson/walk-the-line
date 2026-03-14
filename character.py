@@ -17,7 +17,7 @@ WHITE = (255, 255, 255)
 class MrLinea:
     """The iconic line-drawn character."""
 
-    CHAR_H = 52   # feet-to-crown height
+    CHAR_H = 54   # feet-to-crown height
     CHAR_W = 14   # half-width for wall collisions
 
     def __init__(self, x, y):
@@ -170,53 +170,62 @@ class MrLinea:
         self._draw_at(surface, sx, sy)
 
     def _draw_at(self, surface, sx, sy, color=WHITE, lw=3):
-        """Draw Mr. Linea centred at foot position (sx, sy)."""
+        """Draw the character centred at foot position (sx, sy)."""
         fr = self.facing_right
+        fd = 1 if fr else -1
 
         # ── head ─────────────────────────────────────────────────────────
-        hx, hy = sx, sy - 42
-        pygame.draw.circle(surface, color, (hx, hy), 13, lw)
+        hx, hy = sx, sy - 43
+        pygame.draw.circle(surface, color, (hx, hy), 11, lw)
 
-        # ── nose (the iconic feature) ─────────────────────────────────────
+        # ── eye: single profile dot (distinguishing feature) ──────────────
+        ex = hx + fd * 4
+        ey = hy - 4
+        pygame.draw.circle(surface, color, (ex, ey), 2, 0)
+
+        # ── nose: rounded oval protrusion ────────────────────────────────
+        nose_w, nose_h = 16, 9
         if fr:
-            nose = [(hx + 11, hy - 1), (hx + 27, hy + 5), (hx + 11, hy + 10)]
+            nose_rect = pygame.Rect(hx + 9, hy - 1, nose_w, nose_h)
         else:
-            nose = [(hx - 11, hy - 1), (hx - 27, hy + 5), (hx - 11, hy + 10)]
-        pygame.draw.polygon(surface, color, nose, lw)
+            nose_rect = pygame.Rect(hx - 9 - nose_w, hy - 1, nose_w, nose_h)
+        pygame.draw.ellipse(surface, color, nose_rect, lw)
 
-        # ── body ─────────────────────────────────────────────────────────
-        body_top = hy + 13
+        # ── short neck ────────────────────────────────────────────────────
+        neck_top = hy + 11
+        neck_bot = hy + 17
+        pygame.draw.line(surface, color, (hx, neck_top), (hx, neck_bot), lw)
+
+        # ── body: pear-shaped (wide hips, narrow shoulders) ───────────────
+        body_top = neck_bot
         body_bot = sy - 10
-        body_pts = []
-        steps = 16
-        for i in range(steps + 1):
-            t = i / steps
-            angle = math.pi * t
-            bx = hx - 11 * math.sin(angle)
-            by = body_top + t * (body_bot - body_top)
-            body_pts.append((int(bx), int(by)))
-        for i in range(steps + 1):
-            t = i / steps
-            angle = math.pi * (1 - t)
-            bx = hx + 11 * math.sin(angle)
-            by = body_bot - t * (body_bot - body_top)
-            body_pts.append((int(bx), int(by)))
-        if len(body_pts) > 2:
-            pygame.draw.polygon(surface, color, body_pts, lw)
+        body_h   = body_bot - body_top
+        body_pts = [
+            (hx,      body_top),
+            (hx - 9,  body_top + int(body_h * 0.20)),
+            (hx - 13, body_top + int(body_h * 0.55)),
+            (hx - 10, body_top + int(body_h * 0.82)),
+            (hx - 6,  body_bot),
+            (hx + 6,  body_bot),
+            (hx + 10, body_top + int(body_h * 0.82)),
+            (hx + 13, body_top + int(body_h * 0.55)),
+            (hx + 9,  body_top + int(body_h * 0.20)),
+        ]
+        pygame.draw.polygon(surface, color, body_pts, lw)
 
         # ── arms ─────────────────────────────────────────────────────────
-        arm_y   = body_top + (body_bot - body_top) * 0.35
-        swing   = math.sin(self.walk_frame * math.pi / 2) * 13 if self.on_ground else 0
-        pygame.draw.line(surface, color, (hx - 9, int(arm_y)), (hx - 22, int(arm_y + 14 + swing)), lw)
-        pygame.draw.line(surface, color, (hx + 9, int(arm_y)), (hx + 22, int(arm_y + 14 - swing)), lw)
+        arm_y  = body_top + int(body_h * 0.22)
+        swing  = math.sin(self.walk_frame * math.pi / 2) * 12 if self.on_ground else 0
+        pygame.draw.line(surface, color, (hx - 8, arm_y), (hx - 20, arm_y + 15 + int(swing)), lw)
+        pygame.draw.line(surface, color, (hx + 8, arm_y), (hx + 20, arm_y + 15 - int(swing)), lw)
 
         # ── legs ─────────────────────────────────────────────────────────
-        leg_s = math.sin(self.walk_frame * math.pi / 2) * 11 if self.on_ground else 0
-        fd    = 1 if fr else -1
+        leg_s = math.sin(self.walk_frame * math.pi / 2) * 10 if self.on_ground else 0
 
         for side, leg_shift in ((-1, -leg_s), (1, leg_s)):
             lx_top = hx + side * 5
             lx_bot = hx + side * 7 + int(leg_shift)
             pygame.draw.line(surface, color, (lx_top, body_bot), (lx_bot, sy), lw)
-            # foot
-            pygame.draw.line(surface, color, (lx_bot, sy), (lx_bot + fd * 11, sy), lw)
+            # foot with small rounded toe dot
+            pygame.draw.line(surface, color, (lx_bot, sy), (lx_bot + fd * 10, sy), lw)
+            pygame.draw.circle(surface, color, (lx_bot + fd * 10, sy), 2, 0)
