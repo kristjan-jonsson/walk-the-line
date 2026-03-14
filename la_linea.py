@@ -166,21 +166,21 @@ class SoundEngine:
             (rng.uniform(-1, 1) * max(0, 1 - i / n) ** 2 * 0.18
              for i in range(n)))
 
-    @classmethod
-    def _jump(cls):
-        """Quick upward frequency sweep – boing."""
-        dur, sr = 0.17, cls.SR
-        n = int(sr * dur)
-        s = cls._sin
-        samples = []
-        phase = 0.0
-        for i in range(n):
-            t   = i / sr
-            env = max(0.0, 1.0 - t / dur) ** 0.6
-            freq = 180 + 900 * (t / dur) ** 0.45
-            samples.append(s(phase) * env * 0.42)
-            phase = (phase + freq / sr) % 1.0
-        return cls._pack(samples)
+    # @classmethod
+    # def _jump(cls):
+    #     """Quick upward frequency sweep – boing."""
+    #     dur, sr = 0.17, cls.SR
+    #     n = int(sr * dur)
+    #     s = cls._sin
+    #     samples = []
+    #     phase = 0.0
+    #     for i in range(n):
+    #         t   = i / sr
+    #         env = max(0.0, 1.0 - t / dur) ** 0.6
+    #         freq = 180 + 900 * (t / dur) ** 0.45
+    #         samples.append(s(phase) * env * 0.42)
+    #         phase = (phase + freq / sr) % 1.0
+    #     return cls._pack(samples)
 
     @classmethod
     def _land(cls):
@@ -326,7 +326,7 @@ class SoundEngine:
 
     def __init__(self):
         self.snd_footstep = self._footstep()
-        self.snd_jump     = self._jump()
+        # self.snd_jump     = self._jump()
         self.snd_land     = self._land()
         self.snd_star     = self._star_ding()
         self.snd_die      = self._die()
@@ -797,7 +797,7 @@ def main():
             char.update(segs, walls, keys, stars)
 
             # ── sound events ──────────────────────────────────────────────
-            if char.ev_jump:  sounds.play(sounds.snd_jump,  0.7)
+            # if char.ev_jump:  sounds.play(sounds.snd_jump,  0.7)
             if char.ev_land:  sounds.play(sounds.snd_land,  0.6)
             if char.ev_step:  sounds.play(sounds.snd_footstep, 0.5)
             if char.ev_star:  sounds.play(sounds.snd_star,  0.9)
