@@ -351,9 +351,6 @@ def draw_flip_triggers(surface, flip_triggers, segments, cam_x, t):
         pygame.draw.polygon(surface, col, [(sx, ay), (sx - 7, ay - 14), (sx + 7, ay - 14)], 2)
 
 
-def lerp_color(a, b, t):
-    return tuple(int(a[i] + (b[i] - a[i]) * max(0.0, min(1.0, t))) for i in range(3))
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Main
@@ -468,13 +465,9 @@ def main():
             camera_x += (target_x - camera_x) * 0.10
             camera_x  = max(0.0, camera_x)
 
-            # Background colour cycles through the palette every 2000 px
-            palette_pos = (char.x / 2000.0) % len(BG_PALETTE)
-            pal_idx     = int(palette_pos)
-            pal_frac    = palette_pos - pal_idx
-            pal_next    = (pal_idx + 1) % len(BG_PALETTE)
-            target_bg   = lerp_color(BG_PALETTE[pal_idx], BG_PALETTE[pal_next], pal_frac)
-            bg_color    = [int(bg_color[i] + (target_bg[i] - bg_color[i]) * 0.04) for i in range(3)]
+            # Background colour switches every 2000 px
+            pal_idx  = int(char.x / 2000.0) % len(BG_PALETTE)
+            bg_color = list(BG_PALETTE[pal_idx])
 
             # Death
             if not char.alive:
