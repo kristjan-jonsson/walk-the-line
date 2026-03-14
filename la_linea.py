@@ -18,13 +18,13 @@ import math
 import random
 import array
 
+from constants   import SCREEN_W, SCREEN_H, FPS, GRAVITY, JUMP_FORCE, MOVE_SPEED
+from spring_line import SpringLine
+from level       import generate_level
+
 pygame.mixer.pre_init(22050, -16, 1, 512)
 pygame.init()
 pygame.mixer.set_num_channels(8)
-
-SCREEN_W = 960
-SCREEN_H = 600
-FPS = 60
 
 # Palette – minimalist like the show
 WHITE       = (255, 255, 255)
@@ -32,103 +32,6 @@ BLACK       = (0,   0,   0)
 STAR_COLOR  = (255, 240, 80)
 PARTICLE_C  = (255, 255, 255)
 
-# Physics
-GRAVITY    = 0.55
-JUMP_FORCE = -13.5
-MOVE_SPEED = 4.2
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Terrain
-# ─────────────────────────────────────────────────────────────────────────────
-
-class SpringLine:
-    """
-    A terrain segment whose nodes are connected by springs.
-    The line sags under the character's weight and bounces back,
-    with ripples propagating outward from the impact point.
-    """
-    NODE_SPACING = 10   # pixels between physics nodes
-
-    # Spring constants
-    K_REST    = 0.022   # pull each node back toward its rest height
-    K_TENSION = 0.28    # coupling between adjacent nodes (wave speed)
-    DAMPING   = 0.89    # velocity multiplier per frame (< 1 = energy loss)
-
-    def __init__(self, x1, y1, x2, y2):
-        self.x1 = float(x1)
-        self.x2 = float(x2)
-        n = max(2, int((x2 - x1) / self.NODE_SPACING) + 1)
-        self.nx  = [x1 + i * (x2 - x1) / (n - 1) for i in range(n)]
-        self.ry  = [y1 + i * (y2 - y1) / (n - 1) for i in range(n)]  # rest y
-        self.y   = list(self.ry)   # current y
-        self.vy  = [0.0] * n       # vertical velocity of each node
-
-    # ── kept for compatibility ────────────────────────────────────────────
-    @property
-    def y1(self): return self.y[0]
-    @property
-    def y2(self): return self.y[-1]
-
-    def contains_x(self, x):
-        return self.x1 <= x <= self.x2
-
-    def y_at(self, x):
-        """Interpolate current (deformed) y at world-x."""
-        if x <= self.nx[0]:  return self.y[0]
-        if x >= self.nx[-1]: return self.y[-1]
-        for i in range(len(self.nx) - 1):
-            if self.nx[i] <= x <= self.nx[i + 1]:
-                t = (x - self.nx[i]) / (self.nx[i + 1] - self.nx[i])
-                return self.y[i] + t * (self.y[i + 1] - self.y[i])
-        return self.y[-1]
-
-    def apply_force(self, x, force, radius=28):
-        """Push nodes downward at world-x with a bell-curve influence."""
-        for i, nx in enumerate(self.nx):
-            d = abs(nx - x)
-            if d < radius:
-                influence = (1.0 - d / radius) ** 2
-                self.vy[i] += force * influence
-
-    def update(self):
-        """Advance spring physics one timestep."""
-        n = len(self.y)
-        acc = [0.0] * n
-        for i in range(n):
-            acc[i] += self.K_REST * (self.ry[i] - self.y[i])
-            if i > 0:
-                acc[i] += self.K_TENSION * (self.y[i - 1] - self.y[i])
-            if i < n - 1:
-                acc[i] += self.K_TENSION * (self.y[i + 1] - self.y[i])
-        for i in range(n):
-            self.vy[i] = (self.vy[i] + acc[i]) * self.DAMPING
-            self.y[i] += self.vy[i]
-
-    @classmethod
-    def from_path(cls, points):
-        """
-        Build one continuous SpringLine from a list of (x, y) waypoints.
-        Nodes are distributed at NODE_SPACING intervals; the rest-y is
-        piecewise-linear through the waypoints, so slopes are preserved.
-        """
-        obj = cls.__new__(cls)
-        obj.x1 = float(points[0][0])
-        obj.x2 = float(points[-1][0])
-        obj.nx, obj.ry = [], []
-        for i in range(len(points) - 1):
-            px1, py1 = points[i]
-            px2, py2 = points[i + 1]
-            dx = px2 - px1
-            n  = max(2, int(dx / cls.NODE_SPACING))
-            for j in range(n):          # exclude last point (added by next segment)
-                t = j / n
-                obj.nx.append(px1 + t * dx)
-                obj.ry.append(py1 + t * (py2 - py1))
-        obj.nx.append(float(points[-1][0]))
-        obj.ry.append(float(points[-1][1]))
-        obj.y  = list(obj.ry)
-        obj.vy = [0.0] * len(obj.nx)
-        return obj
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -346,99 +249,6 @@ class SoundEngine:
         if ch:
             ch.set_volume(vol)
 
-
-def generate_level():
-    """Build a list of terrain SpringLines and star positions."""
-    GROUND = SCREEN_H * 0.64
-    segments = []
-    stars    = []
-    x, y     = 0.0, GROUND
-    path     = [(0.0, GROUND)]   # waypoints for the current connected section
-
-    def flush():
-        if len(path) >= 2:
-            segments.append(SpringLine.from_path(path))
-        path.clear()
-
-    def add_seg(length, dy=0):
-        nonlocal x, y
-        new_y = max(180.0, min(SCREEN_H - 120.0, y + dy))
-        x += length
-        y  = new_y
-        path.append((x, y))
-
-    def add_gap(width):
-        nonlocal x
-        flush()
-        x += width
-        path.append((x, y))     # start next section at same height
-
-    def add_star(ox=0, oy=-40):
-        stars.append((x + ox, y + oy))
-
-    # ── level layout ──────────────────────────────────────────────────────
-    # Stars are placed at ox=0 (current x) so their y always matches the
-    # ground at that exact point – all reachable while walking.
-
-    add_seg(200)
-    add_star(0, -52)           # 1 — opening runway
-    add_seg(120)               # total flat: 320
-
-    add_seg(180, -50)          # rise
-    add_seg(70)
-    add_star(0, -52)           # 2 — top of the rise
-    add_seg(50)                # total flat after rise: 120
-    add_gap(90)                # gap 1
-
-    add_seg(80)
-    add_star(0, -52)           # 3 — just after gap 1
-    add_seg(80)                # total: 160
-
-    add_seg(200, 60)           # dip down
-    add_seg(40)
-    add_star(0, -52)           # 4 — bottom of the dip
-    add_seg(40)
-    add_gap(70)                # gap 2
-    add_seg(80)
-
-    add_seg(160, -80)          # climb
-    add_seg(80)
-    add_star(0, -52)           # 5 — near the peak
-    add_seg(60)                # total flat: 140
-    add_gap(110)               # wide gap — need a run-up
-
-    add_seg(200, 30)
-    add_seg(60)
-    add_star(0, -52)           # 6 — mid-level descent
-    add_seg(60)                # total flat: 120
-
-    add_seg(200, -90)          # tall hill
-    add_seg(60)
-    add_gap(60)
-    add_seg(200, 110)          # long descent
-
-    add_seg(100)
-    add_star(0, -52)           # 7 — bottom of long descent
-    add_seg(80)                # total flat: 180
-    add_gap(80)
-
-    add_seg(150, -40)
-    add_seg(100)
-    add_gap(55)
-    add_seg(100, 40)
-
-    add_seg(160)
-    add_star(0, -52)           # 8 — finish runway
-    add_seg(190)               # total finish: 350
-
-    flush()                    # commit the final section
-    level_end = x
-    return segments, stars, level_end
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Mr. Linea  (character)
-# ─────────────────────────────────────────────────────────────────────────────
 
 class MrLinea:
     """The iconic line-drawn character."""
