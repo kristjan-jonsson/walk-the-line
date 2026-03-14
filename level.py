@@ -33,6 +33,9 @@ class LevelGenerator:
         self._last_star_at = 0.0
         self._path         = [(0.0, self._y)]
         self._player_x     = 0.0   # updated each frame for difficulty scaling
+        self._next_flip_x  = 2500.0  # first gravity-flip trigger
+
+        self.flip_triggers = []   # list of world-x positions where gravity toggles
 
         # Safe opening, then fill the initial look-ahead buffer
         self._flat(220)
@@ -52,6 +55,10 @@ class LevelGenerator:
 
     def _extend_to(self, target_x):
         while self._x < target_x:
+            # Insert a gravity-flip trigger before generating each chunk
+            if self._x >= self._next_flip_x:
+                self.flip_triggers.append(self._next_flip_x)
+                self._next_flip_x += self._rng.randint(1400, 2200)
             self._generate_chunk()
             # Flush if the unflushed path has grown too long; this ensures
             # there is always a committed segment near the player even when

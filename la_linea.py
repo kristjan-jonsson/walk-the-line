@@ -323,6 +323,33 @@ def draw_hand_pencil(surface, x, y, alpha=255):
     surface.blit(s, (x - 5, y - 45))
 
 
+def draw_flip_triggers(surface, flip_triggers, segments, cam_x, t):
+    """Draw a pulsing ↕ portal marker at each upcoming gravity-flip trigger."""
+    for tx in flip_triggers:
+        sx = int(tx - cam_x)
+        if sx < -20 or sx > SCREEN_W + 20:
+            continue
+        # Find terrain y at this x
+        line_y = SCREEN_H // 2
+        for seg in segments:
+            if seg.contains_x(tx):
+                line_y = int(seg.y_at(tx))
+                break
+        pulse = 0.5 + 0.5 * math.sin(t * 0.12)
+        alpha = int(140 + 80 * pulse)
+        col   = (alpha, alpha, alpha)
+        # Dashed vertical stripe centred on the line
+        for y in range(max(0, line_y - 80), min(SCREEN_H, line_y + 80), 12):
+            if ((y - line_y) // 12) % 2 == 0:
+                pygame.draw.line(surface, col, (sx, y), (sx, min(y + 6, SCREEN_H)), 2)
+        # ↑ arrow above
+        ay = line_y - 52
+        pygame.draw.polygon(surface, col, [(sx, ay), (sx - 7, ay + 14), (sx + 7, ay + 14)], 2)
+        # ↓ arrow below
+        ay = line_y + 52
+        pygame.draw.polygon(surface, col, [(sx, ay), (sx - 7, ay - 14), (sx + 7, ay - 14)], 2)
+
+
 def lerp_color(a, b, t):
     return tuple(int(a[i] + (b[i] - a[i]) * max(0.0, min(1.0, t))) for i in range(3))
 
@@ -414,6 +441,16 @@ def main():
                 seg.update()
             char.update(gen.segments, gen.walls, keys, gen.stars)
 
+            # ── gravity-flip triggers ──────────────────────────────────────
+            pending = []
+            for fx in gen.flip_triggers:
+                if char.x > fx:
+                    char.gravity_flipped = not char.gravity_flipped
+                    char.on_ground = False   # let physics re-attach to the new side
+                else:
+                    pending.append(fx)
+            gen.flip_triggers = pending
+
             # ── sound events ──────────────────────────────────────────────
             # if char.ev_jump:  sounds.play(sounds.snd_jump,  0.7)
             if char.ev_land:  sounds.play(sounds.snd_land,  0.6)
@@ -464,6 +501,7 @@ def main():
         screen.fill(tuple(int(c) for c in bg_color))
 
         draw_terrain(screen, gen.segments, gen.walls, int(camera_x))
+        draw_flip_triggers(screen, gen.flip_triggers, gen.segments, int(camera_x), tick)
         draw_stars(screen, gen.stars, int(camera_x), tick)
         char.draw(screen, int(camera_x))
 
