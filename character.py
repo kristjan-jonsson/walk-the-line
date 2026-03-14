@@ -67,6 +67,8 @@ class MrLinea:
         self.idle_timer      = 0
         self.idle_frame      = 0
         self.alive           = True
+        self.lives           = 3
+        self.invincible_timer = 0
         self.stars_collected = 0
         # Sound-event flags – read by main loop each frame, then cleared
         self.ev_jump = False
@@ -74,6 +76,7 @@ class MrLinea:
         self.ev_step = False
         self.ev_star = False
         self.ev_die  = False
+        self.ev_hit  = False
         # Sprite cache – populated lazily on first draw (needs display surface)
         self._sprites = None
 
@@ -223,10 +226,27 @@ class MrLinea:
                 self.idle_timer = 0
                 self.idle_frame = (self.idle_frame + 1) % 8
 
+        # ── Invincibility countdown ───────────────────────────────────────────
+        if self.invincible_timer > 0:
+            self.invincible_timer -= 1
+
         # ── Death ─────────────────────────────────────────────────────────────
         if self.y > SCREEN_H + 100 or self.y < -100:
+            self.lives = 0
             self.alive = False
             self.ev_die = True
+
+    def take_damage(self):
+        """Called by the main loop when an enemy hits the player."""
+        if self.invincible_timer > 0:
+            return
+        self.lives -= 1
+        self.ev_hit = True
+        if self.lives <= 0:
+            self.alive   = False
+            self.ev_die  = True
+        else:
+            self.invincible_timer = 100   # ~1.7 s of invincibility
 
     # ── Sprite management ─────────────────────────────────────────────────────
 
@@ -272,6 +292,9 @@ class MrLinea:
     def draw(self, surface, cam_x):
         """Blit the correct sprite frame so the contact-point lands at world pos (x, y)."""
         if not self.alive:
+            return
+        # Flash every 6 frames while invincible
+        if self.invincible_timer > 0 and (self.invincible_timer // 6) % 2 == 0:
             return
         self._ensure_sprites()
 

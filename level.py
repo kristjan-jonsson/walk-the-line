@@ -36,7 +36,8 @@ class LevelGenerator:
         self._next_flip_x     = 2500.0  # first gravity-flip trigger
         self._no_wall_until   = 0.0    # suppress walls near flip triggers
 
-        self.flip_triggers = []   # list of world-x positions where gravity toggles
+        self.flip_triggers  = []   # list of world-x positions where gravity toggles
+        self.enemy_spawns   = []   # list of (x, y) tuples consumed by main loop
 
         # Safe opening, then fill the initial look-ahead buffer
         self._flat(220)
@@ -68,9 +69,10 @@ class LevelGenerator:
                 self._flush()
 
     def _prune_before(self, min_x):
-        self.segments = [s for s in self.segments if s.x2 > min_x]
-        self.walls    = [w for w in self.walls    if w[0] + w[2] > min_x]
-        self.stars    = [(sx, sy) for sx, sy in self.stars if sx > min_x]
+        self.segments     = [s for s in self.segments     if s.x2 > min_x]
+        self.walls        = [w for w in self.walls        if w[0] + w[2] > min_x]
+        self.stars        = [(sx, sy) for sx, sy in self.stars if sx > min_x]
+        self.enemy_spawns = [(sx, sy) for sx, sy in self.enemy_spawns if sx > min_x]
 
     def _flush(self):
         """Commit the current path waypoints as a new SpringLine."""
@@ -84,9 +86,13 @@ class LevelGenerator:
             past_start = seg.x1 >= 400
             wx         = seg.x1 + length * 0.55
             safe       = wx < self._no_wall_until
-            if length > 200 and is_flat and past_start and not safe and self._rng.random() < 0.28:
-                wy = seg.y1 - 50
-                self.walls.append((wx, wy, 18, 50))
+            if length > 200 and is_flat and past_start and not safe:
+                if self._rng.random() < 0.28:
+                    wy = seg.y1 - 50
+                    self.walls.append((wx, wy, 18, 50))
+                elif self._rng.random() < 0.30:
+                    ex = seg.x1 + length * self._rng.uniform(0.3, 0.7)
+                    self.enemy_spawns.append((ex, seg.y1))
         self._path = [(self._x, self._y)]
 
     # ── internal: primitives ──────────────────────────────────────────────

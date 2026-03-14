@@ -18,11 +18,12 @@ import math
 import random
 import array
 
-from constants   import SCREEN_W, SCREEN_H, FPS
+from constants   import SCREEN_W, SCREEN_H, FPS, JUMP_FORCE
 from spring_line import SpringLine
 from level       import LevelGenerator
 from character   import MrLinea
 from clouds      import CloudSystem
+from enemies     import Enemy, draw_hearts
 
 pygame.mixer.pre_init(22050, -16, 1, 512)
 pygame.init()
@@ -119,6 +120,22 @@ class SoundEngine:
             samples.append(val)
             for k in range(3):
                 phases[k] = (phases[k] + freqs[k] / sr) % 1.0
+        return cls._pack(samples)
+
+    @classmethod
+    def _hit(cls):
+        """Short sharp thwack — player takes damage."""
+        dur, sr = 0.09, cls.SR
+        n = int(sr * dur)
+        s = cls._sin
+        samples = []
+        phase = 0.0
+        for i in range(n):
+            t   = i / sr
+            env = max(0.0, 1.0 - (t / dur) ** 0.4)
+            freq = 180 - 90 * (t / dur)
+            samples.append(s(phase) * env * 0.55)
+            phase = (phase + freq / sr) % 1.0
         return cls._pack(samples)
 
     @classmethod
@@ -234,6 +251,7 @@ class SoundEngine:
         # self.snd_jump     = self._jump()
         self.snd_land     = self._land()
         self.snd_star     = self._star_ding()
+        self.snd_hit      = self._hit()
         self.snd_die      = self._die()
         self.snd_win      = self._win()
         self.snd_music    = self._music()
@@ -381,9 +399,9 @@ def main():
         gen    = LevelGenerator()
         char   = MrLinea(60, gen.segments[0].y1)
         clouds = CloudSystem()
-        return gen, char, clouds
+        return gen, char, clouds, []   # enemies start empty
 
-    gen, char, clouds = new_game()
+    gen, char, clouds, enemies = new_game()
 
     camera_x   = 0.0
     state      = "playing"    # playing | dead
@@ -411,7 +429,7 @@ def main():
                 if event.key == pygame.K_ESCAPE:
                     running = False
                 if event.key == pygame.K_r:
-                    gen, char, clouds = new_game()
+                    gen, char, clouds, enemies = new_game()
                     camera_x   = 0.0
                     state      = "playing"
                     particles  = []
@@ -441,6 +459,27 @@ def main():
                 seg.update()
             char.update(gen.segments, gen.walls, keys, gen.stars)
 
+            # ── enemies ───────────────────────────────────────────────────
+            # Convert new spawn points into Enemy objects
+            while gen.enemy_spawns:
+                ex, ey = gen.enemy_spawns.pop(0)
+                enemies.append(Enemy(ex, ey))
+            # Update and prune
+            for enemy in enemies:
+                enemy.update(char.x, char.y, gen.segments)
+            enemies = [e for e in enemies if e.x > char.x - gen.PRUNE_BEHIND]
+            # Stomp (normal gravity only)
+            if not char.gravity_flipped:
+                for enemy in enemies:
+                    if enemy.stomped_by(char.x, char.y, char.vy):
+                        enemy.alive = False
+                        char.vy = JUMP_FORCE * 0.6
+            # Contact damage
+            for enemy in enemies:
+                if enemy.hits_player(char.x, char.y) and enemy.can_hit():
+                    char.take_damage()
+                    enemy.register_hit()
+
             # ── gravity-flip triggers ──────────────────────────────────────
             pending = []
             for fx in gen.flip_triggers:
@@ -456,8 +495,9 @@ def main():
             if char.ev_land:  sounds.play(sounds.snd_land,  0.6)
             # if char.ev_step:  sounds.play(sounds.snd_footstep, 0.5)
             if char.ev_star:  sounds.play(sounds.snd_star,  0.9)
+            if char.ev_hit:   sounds.play(sounds.snd_hit,   0.8)
             if char.ev_die:   sounds.play(sounds.snd_die,   0.8)
-            char.ev_jump = char.ev_land = char.ev_step = char.ev_star = char.ev_die = False
+            char.ev_jump = char.ev_land = char.ev_step = char.ev_star = char.ev_hit = char.ev_die = False
 
             # Camera – smooth follow, slightly ahead in movement direction
             lead     = 50 if char.facing_right else -50
@@ -500,6 +540,8 @@ def main():
         draw_terrain(screen, gen.segments, gen.walls, int(camera_x))
         draw_flip_triggers(screen, gen.flip_triggers, gen.segments, int(camera_x), tick)
         draw_stars(screen, gen.stars, int(camera_x), tick)
+        for enemy in enemies:
+            enemy.draw(screen, int(camera_x))
         char.draw(screen, int(camera_x))
 
         # Particles
@@ -514,6 +556,7 @@ def main():
         star_txt  = font.render(f"★ {collected}", True, STAR_COLOR)
         dist_txt  = font.render(f"{int(max(0, char.x - 60))} m", True, WHITE)
         screen.blit(star_txt, (20, 20))
+        draw_hearts(screen, char.lives)
         screen.blit(dist_txt, (SCREEN_W - dist_txt.get_width() - 20, 20))
         mute_txt = font.render("♪ M" if not music_muted else "✕ M", True,
                                (180, 180, 180) if not music_muted else (220, 80, 80))
