@@ -377,37 +377,49 @@ def generate_level():
         stars.append((x + ox, y + oy))
 
     # ── level layout ──────────────────────────────────────────────────────
-    add_seg(320)               # opening runway
-    add_star(260, -45)
+    # Stars are placed at ox=0 (current x) so their y always matches the
+    # ground at that exact point – all reachable while walking.
+
+    add_seg(200)
+    add_star(0, -52)           # 1 — opening runway
+    add_seg(120)               # total flat: 320
 
     add_seg(180, -50)          # rise
-    add_seg(120)
-    add_star(60, -40)
-    add_gap(90)                # first gap
-    add_seg(160)
-    add_star(80, -40)
+    add_seg(70)
+    add_star(0, -52)           # 2 — top of the rise
+    add_seg(50)                # total flat after rise: 120
+    add_gap(90)                # gap 1
+
+    add_seg(80)
+    add_star(0, -52)           # 3 — just after gap 1
+    add_seg(80)                # total: 160
 
     add_seg(200, 60)           # dip down
-    add_seg(80)
-    add_gap(70)                # gap mid-slope
+    add_seg(40)
+    add_star(0, -52)           # 4 — bottom of the dip
+    add_seg(40)
+    add_gap(70)                # gap 2
     add_seg(80)
 
     add_seg(160, -80)          # climb
-    add_seg(140)
-    add_star(70, -40)
+    add_seg(80)
+    add_star(0, -52)           # 5 — near the peak
+    add_seg(60)                # total flat: 140
     add_gap(110)               # wide gap — need a run-up
 
     add_seg(200, 30)
-    add_seg(120)
-    add_star(60, -40)
+    add_seg(60)
+    add_star(0, -52)           # 6 — mid-level descent
+    add_seg(60)                # total flat: 120
 
     add_seg(200, -90)          # tall hill
     add_seg(60)
     add_gap(60)
     add_seg(200, 110)          # long descent
 
-    add_seg(180)
-    add_star(90, -40)
+    add_seg(100)
+    add_star(0, -52)           # 7 — bottom of long descent
+    add_seg(80)                # total flat: 180
     add_gap(80)
 
     add_seg(150, -40)
@@ -415,8 +427,9 @@ def generate_level():
     add_gap(55)
     add_seg(100, 40)
 
-    add_seg(350)               # finish runway
-    add_star(180, -40)
+    add_seg(160)
+    add_star(0, -52)           # 8 — finish runway
+    add_seg(190)               # total finish: 350
 
     flush()                    # commit the final section
     level_end = x
