@@ -1,33 +1,44 @@
 """
-level.py – Level layout and generation for La Linea.
+level.py – Procedural level generation for La Linea.
 
-Defines generate_level(), which returns:
+generate_level() returns a fresh random level every call:
   segments  : list[SpringLine]  – spring-physics terrain sections
   stars     : list[(x, y)]      – collectible star world positions
   level_end : float             – x coordinate of the finish line
 
-The layout uses three helpers:
+Internal helpers:
   add_seg(length, dy=0)  – extend the current connected section
   add_gap(width)         – break the line (gap to jump over)
-  add_star(ox=0, oy=-52) – place a star at the current position
-
-Stars are always placed with ox=0 so their y matches the actual ground
-at that x, making every star reachable while walking (no jump needed).
+  flat(length)           – flat stretch, drops a star if one is due
+  hill(up, peak, down)   – rise → flat peak → fall
+  gap(width)             – flat approach + gap + flat landing
 """
 
+import random
+
 from spring_line import SpringLine
-from constants   import SCREEN_W, SCREEN_H
+from constants   import SCREEN_H
+
+
+# ── Tuneable limits ────────────────────────────────────────────────────────────
+_MIN_Y      = 180.0            # highest the line may go (px from top)
+_MAX_Y      = SCREEN_H - 120.0 # lowest the line may go
+_STAR_EVERY = 380              # drop a star at least once every N px
+_GAP_MAX    = 115              # widest gap (must be jumpable)
 
 
 def generate_level():
-    """Return (segments, stars, level_end) for the single built-in level."""
+    """Return (segments, stars, level_end) for a freshly randomised level."""
+    rng    = random.Random()   # unseeded → different every run
     GROUND = SCREEN_H * 0.64
+
     segments = []
     stars    = []
     x, y     = 0.0, GROUND
-    path     = [(0.0, GROUND)]   # waypoints for the current connected section
+    path     = [(0.0, GROUND)]
+    last_star_at = 0.0         # x position of last star placed
 
-    # ── internal helpers ──────────────────────────────────────────────────
+    # ── low-level primitives ──────────────────────────────────────────────
 
     def flush():
         if len(path) >= 2:
@@ -36,75 +47,129 @@ def generate_level():
 
     def add_seg(length, dy=0):
         nonlocal x, y
-        new_y = max(180.0, min(SCREEN_H - 120.0, y + dy))
-        x    += length
-        y     = new_y
+        y = max(_MIN_Y, min(_MAX_Y, y + dy))
+        x += length
         path.append((x, y))
 
     def add_gap(width):
         nonlocal x
         flush()
         x += width
-        path.append((x, y))     # resume at same height after the gap
+        path.append((x, y))
 
-    def add_star(ox=0, oy=-52):
-        stars.append((x + ox, y + oy))
+    def drop_star():
+        nonlocal last_star_at
+        stars.append((x, y - 52))
+        last_star_at = x
 
-    # ── level layout ──────────────────────────────────────────────────────
-    # Stars are placed at ox=0 (current x) so their y always matches the
-    # ground at that exact point – all reachable while walking.
+    def star_if_due():
+        if x - last_star_at >= _STAR_EVERY:
+            drop_star()
 
-    add_seg(200)
-    add_star(0, -52)           # 1 — opening runway
-    add_seg(120)               # total flat: 320
+    # ── composable terrain chunks ─────────────────────────────────────────
 
-    add_seg(180, -50)          # rise
-    add_seg(70)
-    add_star(0, -52)           # 2 — top of the rise
-    add_seg(50)                # total flat after rise: 120
-    add_gap(90)                # gap 1
+    def flat(length):
+        half = length // 2
+        add_seg(half)
+        star_if_due()
+        add_seg(length - half)
 
-    add_seg(80)
-    add_star(0, -52)           # 3 — just after gap 1
-    add_seg(80)                # total: 160
+    def hill(up_len, peak_len, down_len, height):
+        """Rise by -height, flat peak, fall back down."""
+        add_seg(up_len, -abs(height))
+        add_seg(peak_len // 2)
+        star_if_due()
+        add_seg(peak_len - peak_len // 2)
+        add_seg(down_len, abs(height))
 
-    add_seg(200, 60)           # dip down
-    add_seg(40)
-    add_star(0, -52)           # 4 — bottom of the dip
-    add_seg(40)
-    add_gap(70)                # gap 2
-    add_seg(80)
+    def valley(down_len, floor_len, up_len, depth):
+        """Dip by +depth, flat floor, rise back up."""
+        add_seg(down_len, abs(depth))
+        add_seg(floor_len // 2)
+        star_if_due()
+        add_seg(floor_len - floor_len // 2)
+        add_seg(up_len, -abs(depth))
 
-    add_seg(160, -80)          # climb
-    add_seg(80)
-    add_star(0, -52)           # 5 — near the peak
-    add_seg(60)                # total flat: 140
-    add_gap(110)               # wide gap — need a run-up
+    def gap(width, approach=80, landing=80):
+        flat(approach)
+        add_gap(width)
+        flat(landing)
 
-    add_seg(200, 30)
-    add_seg(60)
-    add_star(0, -52)           # 6 — mid-level descent
-    add_seg(60)                # total flat: 120
+    def ramp_up(length, height):
+        add_seg(length, -abs(height))
 
-    add_seg(200, -90)          # tall hill
-    add_seg(60)
-    add_gap(60)
-    add_seg(200, 110)          # long descent
+    def ramp_down(length, height):
+        add_seg(length, abs(height))
 
-    add_seg(100)
-    add_star(0, -52)           # 7 — bottom of long descent
-    add_seg(80)                # total flat: 180
-    add_gap(80)
+    # ── difficulty-scaled random pickers ─────────────────────────────────
 
-    add_seg(150, -40)
-    add_seg(100)
-    add_gap(55)
-    add_seg(100, 40)
+    def r_gap(progress):
+        """Gap width scales from small early to large late."""
+        lo = int(55 + 25 * progress)
+        hi = int(80 + 35 * progress)
+        return rng.randint(lo, min(hi, _GAP_MAX))
 
-    add_seg(160)
-    add_star(0, -52)           # 8 — finish runway
-    add_seg(190)               # total finish: 350
+    def r_height(progress):
+        """Slope height scales with progress."""
+        lo = int(30 + 20 * progress)
+        hi = int(55 + 45 * progress)
+        return rng.randint(lo, hi)
 
-    flush()                    # commit the final section
-    level_end = x
-    return segments, stars, level_end
+    def r_len(lo, hi):
+        return rng.randint(lo, hi)
+
+    # ── level assembly ────────────────────────────────────────────────────
+
+    # Safe opening – always flat so the player gets their bearings
+    flat(220)
+    drop_star()
+    flat(120)
+
+    TARGET = 3400   # total level length before finish runway
+
+    while x < TARGET:
+        progress = min(x / TARGET, 1.0)
+
+        # Weight each chunk type: gaps become more common with progress
+        choices = (
+            ['flat']         * max(1, int(4 - 3 * progress)) +
+            ['hill']         * 2 +
+            ['valley']       * 2 +
+            ['ramp_up']      * 2 +
+            ['ramp_down']    * 2 +
+            ['gap']          * max(1, int(1 + 5 * progress))
+        )
+        chunk = rng.choice(choices)
+
+        if chunk == 'flat':
+            flat(r_len(80, 180))
+
+        elif chunk == 'hill':
+            hill(r_len(100, 200), r_len(60, 120), r_len(100, 200),
+                 r_height(progress))
+
+        elif chunk == 'valley':
+            valley(r_len(80, 160), r_len(60, 100), r_len(80, 160),
+                   r_height(progress) // 2)
+
+        elif chunk == 'ramp_up':
+            ramp_up(r_len(120, 220), r_height(progress))
+            flat(r_len(60, 120))
+
+        elif chunk == 'ramp_down':
+            ramp_down(r_len(120, 220), r_height(progress))
+            flat(r_len(60, 120))
+
+        elif chunk == 'gap':
+            gap(r_gap(progress),
+                approach=r_len(80, 160),
+                landing=r_len(60, 120))
+
+    # Finish runway – always ends on flat ground
+    add_seg(80, int((GROUND - y) * 0.4))   # gentle slope back toward GROUND
+    flat(60)
+    drop_star()
+    flat(200)
+
+    flush()
+    return segments, stars, x
