@@ -37,8 +37,10 @@ _FOOT_Y = 119   # 380 * 0.3125 ≈ 119
 # The foot (originally at _FOOT_Y from top) moves to _SURF_H - _FOOT_Y from top.
 _FOOT_Y_FLIP = _SURF_H - _FOOT_Y   # = 41
 
-_WALK_FILES = [f'fighter_walk_{i:04d}.png' for i in range(9, 17)]   # 8 frames
+_WALK_FILES = [f'fighter_walk_{i:04d}.png' for i in range(9,  17)]   # 8 frames
 _RUN_FILES  = [f'fighter_run_{i:04d}.png'  for i in range(17, 25)]  # 8 frames
+_IDLE_FILES = [f'fighter_Idle_{i:04d}.png' for i in range(1,   9)]  # 8 frames
+_JUMP_FILES = [f'fighter_jump_{i:04d}.png' for i in range(43, 48)]  # 5 frames
 
 RUN_SPEED = MOVE_SPEED * 1.8
 
@@ -62,6 +64,8 @@ class MrLinea:
         self.gravity_flipped = False
         self.walk_timer      = 0
         self.walk_frame      = 0
+        self.idle_timer      = 0
+        self.idle_frame      = 0
         self.alive           = True
         self.stars_collected = 0
         # Sound-event flags – read by main loop each frame, then cleared
@@ -201,7 +205,7 @@ class MrLinea:
                 self.stars_collected += 1
                 self.ev_star = True
 
-        # ── Walk animation ────────────────────────────────────────────────────
+        # ── Walk / idle animation ─────────────────────────────────────────────
         if self.on_ground and abs(self.vx) > 0.5:
             tick_rate = 5 if self.running else 8
             self.walk_timer += 1
@@ -210,8 +214,14 @@ class MrLinea:
                 self.walk_frame = (self.walk_frame + 1) % 8
                 if self.walk_frame in (0, 2, 4, 6):
                     self.ev_step = True
+            self.idle_timer = 0
+            self.idle_frame = 0
         elif self.on_ground:
-            self.walk_frame = 0
+            self.walk_frame  = 0
+            self.idle_timer += 1
+            if self.idle_timer >= 10:
+                self.idle_timer = 0
+                self.idle_frame = (self.idle_frame + 1) % 8
 
         # ── Death ─────────────────────────────────────────────────────────────
         if self.y > SCREEN_H + 100 or self.y < -100:
@@ -249,7 +259,8 @@ class MrLinea:
                 lf.append(pygame.transform.flip(scaled, True,  True ))
             return rn, ln, rf, lf
 
-        for anim, files in (('walk', _WALK_FILES), ('run', _RUN_FILES)):
+        for anim, files in (('walk', _WALK_FILES), ('run', _RUN_FILES),
+                             ('idle', _IDLE_FILES), ('jump', _JUMP_FILES)):
             rn, ln, rf, lf = load_strip(files)
             self._sprites[(anim, True,  False)] = rn
             self._sprites[(anim, False, False)] = ln
@@ -264,18 +275,24 @@ class MrLinea:
             return
         self._ensure_sprites()
 
-        # Choose animation set
-        if self.on_ground and self.running and abs(self.vx) > 0.5:
-            anim = 'run'
+        # Choose animation set and frame index
+        if not self.on_ground:
+            # Jump frame driven by vertical velocity: 0 = takeoff … 4 = falling fast
+            vy = self.vy * (-1 if self.gravity_flipped else 1)  # normalise upward = negative
+            if   vy < -8: frame_idx = 0
+            elif vy < -3: frame_idx = 1
+            elif vy <  2: frame_idx = 2
+            elif vy <  7: frame_idx = 3
+            else:         frame_idx = 4
+            anim = 'jump'
+        elif abs(self.vx) > 0.5:
+            anim      = 'run' if self.running else 'walk'
+            frame_idx = self.walk_frame % 8
         else:
-            anim = 'walk'
+            anim      = 'idle'
+            frame_idx = self.idle_frame
 
         frames = self._sprites[(anim, self.facing_right, self.gravity_flipped)]
-
-        if abs(self.vx) > 0.5 or not self.on_ground:
-            frame_idx = self.walk_frame % len(frames)
-        else:
-            frame_idx = 0
 
         sprite = frames[frame_idx]
         blit_x = int(self.x - cam_x) - _FOOT_X
