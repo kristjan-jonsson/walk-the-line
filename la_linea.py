@@ -22,6 +22,7 @@ from constants   import SCREEN_W, SCREEN_H, FPS
 from spring_line import SpringLine
 from level       import LevelGenerator
 from character   import MrLinea
+from clouds      import CloudSystem
 
 pygame.mixer.pre_init(22050, -16, 1, 512)
 pygame.init()
@@ -380,11 +381,12 @@ def main():
     ]
 
     def new_game():
-        gen  = LevelGenerator()
-        char = MrLinea(60, gen.segments[0].y1)
-        return gen, char
+        gen    = LevelGenerator()
+        char   = MrLinea(60, gen.segments[0].y1)
+        clouds = CloudSystem()
+        return gen, char, clouds
 
-    gen, char = new_game()
+    gen, char, clouds = new_game()
 
     camera_x   = 0.0
     state      = "playing"    # playing | dead
@@ -412,7 +414,7 @@ def main():
                 if event.key == pygame.K_ESCAPE:
                     running = False
                 if event.key == pygame.K_r:
-                    gen, char  = new_game()
+                    gen, char, clouds = new_game()
                     camera_x   = 0.0
                     state      = "playing"
                     particles  = []
@@ -437,6 +439,7 @@ def main():
         # ── game logic ────────────────────────────────────────────────────
         if state == "playing" and intro_done:
             gen.update(char.x)
+            clouds.update(char.x)
             for seg in gen.segments:
                 seg.update()
             char.update(gen.segments, gen.walls, keys, gen.stars)
@@ -500,6 +503,7 @@ def main():
         # ── draw ──────────────────────────────────────────────────────────
         screen.fill(tuple(int(c) for c in bg_color))
 
+        clouds.draw(screen, camera_x, tick)
         draw_terrain(screen, gen.segments, gen.walls, int(camera_x))
         draw_flip_triggers(screen, gen.flip_triggers, gen.segments, int(camera_x), tick)
         draw_stars(screen, gen.stars, int(camera_x), tick)
