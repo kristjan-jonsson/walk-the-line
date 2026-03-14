@@ -20,7 +20,7 @@ import array
 
 from constants   import SCREEN_W, SCREEN_H, FPS, GRAVITY, JUMP_FORCE, MOVE_SPEED
 from spring_line import SpringLine
-from level       import generate_level
+from level       import LevelGenerator
 
 pygame.mixer.pre_init(22050, -16, 1, 512)
 pygame.init()
@@ -548,30 +548,18 @@ def main():
     ]
 
     def new_game():
-        segs, star_list, level_end = generate_level()
-        # Place walls on flat segments
-        w_list = []
-        for seg in segs:
-            length = seg.x2 - seg.x1
-            # Skip the opening runway (x1 < 400) so no wall spawns near the start
-            if length > 200 and abs(seg.y2 - seg.y1) < 5 and seg.x1 >= 400:
-                wx = seg.x1 + length * 0.55
-                wy = seg.y1 - 50
-                w_list.append((wx, wy, 18, 50))
-        # Start well before any obstacle
-        start_y = segs[0].y1
-        char = MrLinea(60, start_y)
-        return segs, w_list, list(star_list), level_end, char
+        gen  = LevelGenerator()
+        char = MrLinea(60, gen.segments[0].y1)
+        return gen, char
 
-    segs, walls, stars, level_end, char = new_game()
+    gen, char = new_game()
 
     camera_x   = 0.0
-    state      = "playing"    # playing | dead | won
+    state      = "playing"    # playing | dead
     tick       = 0
     bg_color   = list(BG_PALETTE[0])
     particles  = []
     hand_alpha = 0
-    total_stars = len(stars)
 
     # ── intro animation ───────────────────────────────────────────────────
     intro_ticks  = 60       # short pause before play
@@ -591,14 +579,13 @@ def main():
                 if event.key == pygame.K_ESCAPE:
                     running = False
                 if event.key == pygame.K_r:
-                    segs, walls, stars, level_end, char = new_game()
-                    camera_x  = 0.0
-                    state     = "playing"
-                    particles = []
-                    bg_color  = list(BG_PALETTE[0])
+                    gen, char  = new_game()
+                    camera_x   = 0.0
+                    state      = "playing"
+                    particles  = []
+                    bg_color   = list(BG_PALETTE[0])
                     hand_alpha = 0
                     tick       = 0
-                    total_stars = len(stars)
                     sounds.start_music()
 
         # ── intro ──────────────────────────────────────────────────────────
@@ -609,9 +596,10 @@ def main():
 
         # ── game logic ────────────────────────────────────────────────────
         if state == "playing" and intro_done:
-            for seg in segs:
+            gen.update(char.x)
+            for seg in gen.segments:
                 seg.update()
-            char.update(segs, walls, keys, stars)
+            char.update(gen.segments, gen.walls, keys, gen.stars)
 
             # ── sound events ──────────────────────────────────────────────
             # if char.ev_jump:  sounds.play(sounds.snd_jump,  0.7)
@@ -627,20 +615,13 @@ def main():
             camera_x += (target_x - camera_x) * 0.10
             camera_x  = max(0.0, camera_x)
 
-            # Background colour transition based on progress
-            progress      = max(0.0, min(1.0, (char.x - 180) / max(1, level_end - 180)))
-            palette_pos   = progress * (len(BG_PALETTE) - 1)
-            pal_idx       = int(palette_pos)
-            pal_frac      = palette_pos - pal_idx
-            pal_next      = min(pal_idx + 1, len(BG_PALETTE) - 1)
-            target_bg     = lerp_color(BG_PALETTE[pal_idx], BG_PALETTE[pal_next], pal_frac)
-            bg_color      = [int(bg_color[i] + (target_bg[i] - bg_color[i]) * 0.04) for i in range(3)]
-
-            # Win condition
-            if char.x >= level_end - 80:
-                state = "won"
-                hand_alpha = 0
-                sounds.play(sounds.snd_win, 1.0)
+            # Background colour cycles through the palette every 2000 px
+            palette_pos = (char.x / 2000.0) % len(BG_PALETTE)
+            pal_idx     = int(palette_pos)
+            pal_frac    = palette_pos - pal_idx
+            pal_next    = (pal_idx + 1) % len(BG_PALETTE)
+            target_bg   = lerp_color(BG_PALETTE[pal_idx], BG_PALETTE[pal_next], pal_frac)
+            bg_color    = [int(bg_color[i] + (target_bg[i] - bg_color[i]) * 0.04) for i in range(3)]
 
             # Death
             if not char.alive:
@@ -663,14 +644,14 @@ def main():
         particles = [p for p in particles if p["life"] > 0]
 
         # ── hand animation ────────────────────────────────────────────────
-        if state in ("dead", "won"):
+        if state == "dead":
             hand_alpha = min(255, hand_alpha + 8)
 
         # ── draw ──────────────────────────────────────────────────────────
         screen.fill(tuple(int(c) for c in bg_color))
 
-        draw_terrain(screen, segs, walls, int(camera_x))
-        draw_stars(screen, stars, int(camera_x), tick)
+        draw_terrain(screen, gen.segments, gen.walls, int(camera_x))
+        draw_stars(screen, gen.stars, int(camera_x), tick)
         char.draw(screen, int(camera_x))
 
         # Particles
@@ -681,21 +662,11 @@ def main():
                                (int(p["x"] - camera_x), int(p["y"])), r)
 
         # ── HUD ───────────────────────────────────────────────────────────
-        # Stars collected
         collected = char.stars_collected
-        star_txt = font.render(f"★ {collected} / {total_stars}", True, STAR_COLOR)
+        star_txt  = font.render(f"★ {collected}", True, STAR_COLOR)
+        dist_txt  = font.render(f"{int(max(0, char.x - 60))} m", True, WHITE)
         screen.blit(star_txt, (20, 20))
-
-        # Distance bar
-        progress_val = max(0.0, min(1.0, (char.x - 180) / max(1, level_end - 180)))
-        bar_w  = 200
-        bar_h  = 8
-        bar_x  = SCREEN_W - bar_w - 20
-        bar_y  = 28
-        pygame.draw.rect(screen, (255, 255, 255, 80), (bar_x, bar_y, bar_w, bar_h), 2)
-        pygame.draw.rect(screen, WHITE, (bar_x, bar_y, int(bar_w * progress_val), bar_h))
-        prog_label = font.render("Progress", True, WHITE)
-        screen.blit(prog_label, (bar_x, bar_y - 22))
+        screen.blit(dist_txt, (SCREEN_W - dist_txt.get_width() - 20, 20))
 
         # Controls hint (fades out)
         if tick < 200:
@@ -716,23 +687,10 @@ def main():
             screen.blit(overlay, (0, SCREEN_H // 2 - 20))
             msg = big_font.render("OHH NOOO!", True, WHITE)
             screen.blit(msg, (SCREEN_W // 2 - msg.get_width() // 2, SCREEN_H // 2 - 10))
-            sub = font.render("Press  R  to try again", True, (220, 220, 220))
-            screen.blit(sub, (SCREEN_W // 2 - sub.get_width() // 2, SCREEN_H // 2 + 60))
-
-        if state == "won":
-            hx = int(SCREEN_W * 0.75)
-            hy = SCREEN_H // 2 - 100
-            draw_hand_pencil(screen, hx, hy, hand_alpha)
-
-            overlay = pygame.Surface((SCREEN_W, 160), pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, 110))
-            screen.blit(overlay, (0, SCREEN_H // 2 - 35))
-            msg = big_font.render("BRAVO!", True, STAR_COLOR)
-            screen.blit(msg, (SCREEN_W // 2 - msg.get_width() // 2, SCREEN_H // 2 - 25))
             sub = font.render(
-                f"Stars: {collected} / {total_stars}    Press  R  to play again",
-                True, WHITE)
-            screen.blit(sub, (SCREEN_W // 2 - sub.get_width() // 2, SCREEN_H // 2 + 55))
+                f"{int(max(0, char.x - 60))} m  ★ {char.stars_collected}    Press R to try again",
+                True, (220, 220, 220))
+            screen.blit(sub, (SCREEN_W // 2 - sub.get_width() // 2, SCREEN_H // 2 + 60))
 
         if not intro_done:
             # Fade-in from black
