@@ -306,7 +306,7 @@ def draw_stars(surface, stars, cam_x, t):
             radius = r if i % 2 == 0 else r // 2
             pts.append((cx + int(math.cos(angle) * radius),
                          cy + int(math.sin(angle) * radius)))
-        pygame.draw.polygon(surface, STAR_COLOR, pts)
+        pygame.draw.polygon(surface, WHITE, pts)
         pygame.draw.polygon(surface, WHITE, pts, 1)
 
 
