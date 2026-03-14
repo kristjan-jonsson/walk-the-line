@@ -12,8 +12,8 @@ Controls:
   Escape          - Quit
 """
 
+import asyncio
 import pygame
-import sys
 import math
 import random
 import array
@@ -374,7 +374,7 @@ def draw_flip_triggers(surface, flip_triggers, segments, cam_x, t):
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
 
-def main():
+async def main():
     screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
     pygame.display.set_caption("La Linea")
     clock = pygame.time.Clock()
@@ -597,10 +597,10 @@ def main():
             screen.blit(title, (SCREEN_W // 2 - title.get_width() // 2, SCREEN_H // 2 - 20))
 
         pygame.display.flip()
+        await asyncio.sleep(0)
 
     pygame.quit()
-    sys.exit()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
