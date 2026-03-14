@@ -560,6 +560,7 @@ def main():
     bg_color   = list(BG_PALETTE[0])
     particles  = []
     hand_alpha = 0
+    music_muted = False
 
     # ── intro animation ───────────────────────────────────────────────────
     intro_ticks  = 60       # short pause before play
@@ -586,7 +587,14 @@ def main():
                     bg_color   = list(BG_PALETTE[0])
                     hand_alpha = 0
                     tick       = 0
-                    sounds.start_music()
+                    if not music_muted:
+                        sounds.start_music()
+                if event.key == pygame.K_m:
+                    music_muted = not music_muted
+                    if music_muted:
+                        sounds._music_ch.set_volume(0.0)
+                    else:
+                        sounds._music_ch.set_volume(0.55)
 
         # ── intro ──────────────────────────────────────────────────────────
         if not intro_done:
@@ -667,11 +675,14 @@ def main():
         dist_txt  = font.render(f"{int(max(0, char.x - 60))} m", True, WHITE)
         screen.blit(star_txt, (20, 20))
         screen.blit(dist_txt, (SCREEN_W - dist_txt.get_width() - 20, 20))
+        mute_txt = font.render("♪ M" if not music_muted else "✕ M", True,
+                               (180, 180, 180) if not music_muted else (220, 80, 80))
+        screen.blit(mute_txt, (SCREEN_W - mute_txt.get_width() - 20, 50))
 
         # Controls hint (fades out)
         if tick < 200:
             alpha = max(0, 255 - int(255 * (tick - 140) / 60)) if tick > 140 else 255
-            hint = font.render("← → Move    Space / ↑ Jump    R Restart", True,
+            hint = font.render("← → Move    Space / ↑ Jump    R Restart    M Mute", True,
                                (alpha, alpha, alpha))
             screen.blit(hint, (SCREEN_W // 2 - hint.get_width() // 2, SCREEN_H - 38))
 
