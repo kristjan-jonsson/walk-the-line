@@ -27,13 +27,14 @@ class LevelGenerator:
         self.walls    = []
         self.stars    = []
 
-        self._rng          = random.Random()
-        self._x            = 0.0
-        self._y            = SCREEN_H * 0.64
-        self._last_star_at = 0.0
-        self._path         = [(0.0, self._y)]
-        self._player_x     = 0.0   # updated each frame for difficulty scaling
-        self._next_flip_x  = 2500.0  # first gravity-flip trigger
+        self._rng             = random.Random()
+        self._x               = 0.0
+        self._y               = SCREEN_H * 0.64
+        self._last_star_at    = 0.0
+        self._path            = [(0.0, self._y)]
+        self._player_x        = 0.0   # updated each frame for difficulty scaling
+        self._next_flip_x     = 2500.0  # first gravity-flip trigger
+        self._no_wall_until   = 0.0    # suppress walls near flip triggers
 
         self.flip_triggers = []   # list of world-x positions where gravity toggles
 
@@ -55,11 +56,10 @@ class LevelGenerator:
 
     def _extend_to(self, target_x):
         while self._x < target_x:
-            # Insert a gravity-flip trigger before generating each chunk
             if self._x >= self._next_flip_x:
-                self.flip_triggers.append(self._next_flip_x)
-                self._next_flip_x += self._rng.randint(1400, 2200)
-            self._generate_chunk()
+                self._flip_section()   # safe flat run with trigger in the middle
+            else:
+                self._generate_chunk()
             # Flush if the unflushed path has grown too long; this ensures
             # there is always a committed segment near the player even when
             # no gap has been generated for a while.
@@ -77,12 +77,14 @@ class LevelGenerator:
         if len(self._path) >= 2:
             seg = SpringLine.from_path(self._path)
             self.segments.append(seg)
-            # Occasionally add a wall obstacle on long flat sections
-            length      = seg.x2 - seg.x1
-            is_flat     = abs(seg.y2 - seg.y1) < 5
-            past_start  = seg.x1 >= 400
-            if length > 200 and is_flat and past_start and self._rng.random() < 0.28:
-                wx = seg.x1 + length * 0.55
+            # Occasionally add a wall obstacle on long flat sections,
+            # but never within the safe zone around a flip trigger.
+            length     = seg.x2 - seg.x1
+            is_flat    = abs(seg.y2 - seg.y1) < 5
+            past_start = seg.x1 >= 400
+            wx         = seg.x1 + length * 0.55
+            safe       = wx < self._no_wall_until
+            if length > 200 and is_flat and past_start and not safe and self._rng.random() < 0.28:
                 wy = seg.y1 - 50
                 self.walls.append((wx, wy, 18, 50))
         self._path = [(self._x, self._y)]
@@ -132,6 +134,17 @@ class LevelGenerator:
     def _gap(self, width, approach=80, landing=80):
         self._flat(approach)
         self._add_gap(width)
+        self._flat(landing)
+
+    def _flip_section(self):
+        """Flat approach → flip trigger → flat landing, no gaps or walls nearby."""
+        approach = self._rng.randint(120, 180)
+        landing  = self._rng.randint(120, 180)
+        self._flat(approach)
+        # Trigger placed here: on flat ground, approach already behind it
+        self.flip_triggers.append(self._x)
+        self._next_flip_x   = self._x + self._rng.randint(1400, 2200)
+        self._no_wall_until = self._x + landing + 200   # clear zone ahead of trigger
         self._flat(landing)
 
     # ── difficulty-scaled random helpers ──────────────────────────────────
