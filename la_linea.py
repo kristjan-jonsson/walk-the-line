@@ -475,12 +475,6 @@ def draw_terrain(surface, segments, walls, cam_x):
             pygame.draw.line(surface, WHITE,
                              (ax, int(seg.y[i])),
                              (bx, int(seg.y[i + 1])), 4)
-        # Short vertical drop at BOTH ends — marks the gap edges, not inner joints
-        for ex, ey in ((seg.x1, seg.y[0]), (seg.x2, seg.y[-1])):
-            sx = int(ex - cam_x)
-            if -10 <= sx <= SCREEN_W + 10:
-                pygame.draw.line(surface, WHITE,
-                                 (sx, int(ey)), (sx, int(ey) + 16), 4)
 
     for wall in walls:
         wx, wy, ww, wh = wall
