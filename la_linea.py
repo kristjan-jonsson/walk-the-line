@@ -101,24 +101,58 @@ class SpringLine:
             self.vy[i] = (self.vy[i] + acc[i]) * self.DAMPING
             self.y[i] += self.vy[i]
 
+    @classmethod
+    def from_path(cls, points):
+        """
+        Build one continuous SpringLine from a list of (x, y) waypoints.
+        Nodes are distributed at NODE_SPACING intervals; the rest-y is
+        piecewise-linear through the waypoints, so slopes are preserved.
+        """
+        obj = cls.__new__(cls)
+        obj.x1 = float(points[0][0])
+        obj.x2 = float(points[-1][0])
+        obj.nx, obj.ry = [], []
+        for i in range(len(points) - 1):
+            px1, py1 = points[i]
+            px2, py2 = points[i + 1]
+            dx = px2 - px1
+            n  = max(2, int(dx / cls.NODE_SPACING))
+            for j in range(n):          # exclude last point (added by next segment)
+                t = j / n
+                obj.nx.append(px1 + t * dx)
+                obj.ry.append(py1 + t * (py2 - py1))
+        obj.nx.append(float(points[-1][0]))
+        obj.ry.append(float(points[-1][1]))
+        obj.y  = list(obj.ry)
+        obj.vy = [0.0] * len(obj.nx)
+        return obj
+
 
 def generate_level():
-    """Build a list of terrain Segments and star positions."""
+    """Build a list of terrain SpringLines and star positions."""
     GROUND = SCREEN_H * 0.64
     segments = []
     stars    = []
     x, y     = 0.0, GROUND
+    path     = [(0.0, GROUND)]   # waypoints for the current connected section
+
+    def flush():
+        if len(path) >= 2:
+            segments.append(SpringLine.from_path(path))
+        path.clear()
 
     def add_seg(length, dy=0):
         nonlocal x, y
         new_y = max(180.0, min(SCREEN_H - 120.0, y + dy))
-        segments.append(SpringLine(x, y, x + length, new_y))
         x += length
-        y = new_y
+        y  = new_y
+        path.append((x, y))
 
     def add_gap(width):
         nonlocal x
+        flush()
         x += width
+        path.append((x, y))     # start next section at same height
 
     def add_star(ox=0, oy=-40):
         stars.append((x + ox, y + oy))
@@ -165,6 +199,7 @@ def generate_level():
     add_seg(350)               # finish runway
     add_star(180, -40)
 
+    flush()                    # commit the final section
     level_end = x
     return segments, stars, level_end
 
@@ -215,6 +250,9 @@ class MrLinea:
             self.vy = JUMP_FORCE
             self.on_ground = False
 
+        # Remember whether we were on the ground before this frame
+        was_on_ground = self.on_ground
+
         # Gravity
         self.vy += GRAVITY
 
@@ -225,7 +263,8 @@ class MrLinea:
         self.x += self.vx
         self.y += self.vy
 
-        # ── terrain collision (swept – prevents tunneling at high velocity) ──
+        # ── terrain collision ────────────────────────────────────────────
+        # Two passes: swept (landing / tunneling) and slope-follow (uphill).
         self.on_ground = False
         best_gy   = float('inf')
         best_line = None
@@ -234,10 +273,17 @@ class MrLinea:
             margin = 4
             if not (seg.contains_x(self.x) or seg.contains_x(self.x - margin) or seg.contains_x(self.x + margin)):
                 continue
-            cx = max(seg.x1, min(seg.x2, self.x))
-            gy = seg.y_at(cx)
-            # Swept test: character crossed from above this segment to below it
-            if prev_y <= gy + 1 and self.y >= gy - 1:
+            cx  = max(seg.x1, min(seg.x2, self.x))
+            gy  = seg.y_at(cx)
+
+            # Swept: character crossed from above to below this frame
+            swept  = prev_y <= gy + 1 and self.y >= gy - 1
+            # Slope-follow: already on ground and slope rose/fell beneath us
+            #   self.y - gy > 0  → uphill (character clipped into rising slope)
+            #   gy - self.y > 0  → downhill (character floating above descending slope)
+            follow = was_on_ground and (self.y - gy) <= 20 and (gy - self.y) <= 10
+
+            if (swept or follow) and self.vy >= 0:
                 if gy < best_gy:
                     best_gy   = gy
                     best_line = seg
@@ -365,7 +411,7 @@ def draw_terrain(surface, segments, walls, cam_x):
     for seg in segments:
         if seg.x2 - cam_x < -50 or seg.x1 - cam_x > SCREEN_W + 50:
             continue
-        # Connect every adjacent pair of spring nodes
+        # Connect every adjacent pair of spring nodes — one continuous chain
         for i in range(len(seg.nx) - 1):
             ax = int(seg.nx[i]     - cam_x)
             bx = int(seg.nx[i + 1] - cam_x)
@@ -374,11 +420,12 @@ def draw_terrain(surface, segments, walls, cam_x):
             pygame.draw.line(surface, WHITE,
                              (ax, int(seg.y[i])),
                              (bx, int(seg.y[i + 1])), 4)
-        # Vertical drop at the left edge of each segment
-        sx = int(seg.x1 - cam_x)
-        if -10 <= sx <= SCREEN_W + 10:
-            pygame.draw.line(surface, WHITE,
-                             (sx, int(seg.y[0])), (sx, int(seg.y[0]) + 18), 4)
+        # Short vertical drop at BOTH ends — marks the gap edges, not inner joints
+        for ex, ey in ((seg.x1, seg.y[0]), (seg.x2, seg.y[-1])):
+            sx = int(ex - cam_x)
+            if -10 <= sx <= SCREEN_W + 10:
+                pygame.draw.line(surface, WHITE,
+                                 (sx, int(ey)), (sx, int(ey) + 16), 4)
 
     for wall in walls:
         wx, wy, ww, wh = wall
