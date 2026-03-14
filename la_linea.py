@@ -38,26 +38,68 @@ MOVE_SPEED = 4.2
 # Terrain
 # ─────────────────────────────────────────────────────────────────────────────
 
-class Segment:
-    """A straight line section of the world."""
-    def __init__(self, x1, y1, x2, y2):
-        self.x1, self.y1 = float(x1), float(y1)
-        self.x2, self.y2 = float(x2), float(y2)
+class SpringLine:
+    """
+    A terrain segment whose nodes are connected by springs.
+    The line sags under the character's weight and bounces back,
+    with ripples propagating outward from the impact point.
+    """
+    NODE_SPACING = 10   # pixels between physics nodes
 
-    def y_at(self, x):
-        if self.x2 == self.x1:
-            return self.y1
-        t = (x - self.x1) / (self.x2 - self.x1)
-        return self.y1 + t * (self.y2 - self.y1)
+    # Spring constants
+    K_REST    = 0.022   # pull each node back toward its rest height
+    K_TENSION = 0.28    # coupling between adjacent nodes (wave speed)
+    DAMPING   = 0.89    # velocity multiplier per frame (< 1 = energy loss)
+
+    def __init__(self, x1, y1, x2, y2):
+        self.x1 = float(x1)
+        self.x2 = float(x2)
+        n = max(2, int((x2 - x1) / self.NODE_SPACING) + 1)
+        self.nx  = [x1 + i * (x2 - x1) / (n - 1) for i in range(n)]
+        self.ry  = [y1 + i * (y2 - y1) / (n - 1) for i in range(n)]  # rest y
+        self.y   = list(self.ry)   # current y
+        self.vy  = [0.0] * n       # vertical velocity of each node
+
+    # ── kept for compatibility ────────────────────────────────────────────
+    @property
+    def y1(self): return self.y[0]
+    @property
+    def y2(self): return self.y[-1]
 
     def contains_x(self, x):
         return self.x1 <= x <= self.x2
 
-    # Normal (for slope-walking)
-    def angle(self):
-        dx = self.x2 - self.x1
-        dy = self.y2 - self.y1
-        return math.atan2(dy, dx)
+    def y_at(self, x):
+        """Interpolate current (deformed) y at world-x."""
+        if x <= self.nx[0]:  return self.y[0]
+        if x >= self.nx[-1]: return self.y[-1]
+        for i in range(len(self.nx) - 1):
+            if self.nx[i] <= x <= self.nx[i + 1]:
+                t = (x - self.nx[i]) / (self.nx[i + 1] - self.nx[i])
+                return self.y[i] + t * (self.y[i + 1] - self.y[i])
+        return self.y[-1]
+
+    def apply_force(self, x, force, radius=28):
+        """Push nodes downward at world-x with a bell-curve influence."""
+        for i, nx in enumerate(self.nx):
+            d = abs(nx - x)
+            if d < radius:
+                influence = (1.0 - d / radius) ** 2
+                self.vy[i] += force * influence
+
+    def update(self):
+        """Advance spring physics one timestep."""
+        n = len(self.y)
+        acc = [0.0] * n
+        for i in range(n):
+            acc[i] += self.K_REST * (self.ry[i] - self.y[i])
+            if i > 0:
+                acc[i] += self.K_TENSION * (self.y[i - 1] - self.y[i])
+            if i < n - 1:
+                acc[i] += self.K_TENSION * (self.y[i + 1] - self.y[i])
+        for i in range(n):
+            self.vy[i] = (self.vy[i] + acc[i]) * self.DAMPING
+            self.y[i] += self.vy[i]
 
 
 def generate_level():
@@ -70,7 +112,7 @@ def generate_level():
     def add_seg(length, dy=0):
         nonlocal x, y
         new_y = max(180.0, min(SCREEN_H - 120.0, y + dy))
-        segments.append(Segment(x, y, x + length, new_y))
+        segments.append(SpringLine(x, y, x + length, new_y))
         x += length
         y = new_y
 
@@ -185,8 +227,8 @@ class MrLinea:
 
         # ── terrain collision (swept – prevents tunneling at high velocity) ──
         self.on_ground = False
-        best_gy = float('inf')
-        best = None
+        best_gy   = float('inf')
+        best_line = None
 
         for seg in segments:
             margin = 4
@@ -195,14 +237,16 @@ class MrLinea:
             cx = max(seg.x1, min(seg.x2, self.x))
             gy = seg.y_at(cx)
             # Swept test: character crossed from above this segment to below it
-            # (handles both slow resting and fast post-jump landings)
             if prev_y <= gy + 1 and self.y >= gy - 1:
                 if gy < best_gy:
-                    best_gy = gy
-                    best = gy
+                    best_gy   = gy
+                    best_line = seg
 
-        if best is not None and self.vy >= 0:
-            self.y  = best
+        if best_line is not None and self.vy >= 0:
+            # Landing impulse (bigger when falling fast) + constant weight while walking
+            force = self.vy * 0.30 + 0.40
+            best_line.apply_force(self.x, force)
+            self.y  = best_gy
             self.vy = 0.0
             self.on_ground = True
 
@@ -319,13 +363,22 @@ class MrLinea:
 
 def draw_terrain(surface, segments, walls, cam_x):
     for seg in segments:
-        x1 = int(seg.x1 - cam_x)
-        x2 = int(seg.x2 - cam_x)
-        if x2 < -50 or x1 > SCREEN_W + 50:
+        if seg.x2 - cam_x < -50 or seg.x1 - cam_x > SCREEN_W + 50:
             continue
-        pygame.draw.line(surface, WHITE, (x1, int(seg.y1)), (x2, int(seg.y2)), 4)
-        # Vertical drop at segment edges (the line "hangs" in space)
-        pygame.draw.line(surface, WHITE, (x1, int(seg.y1)), (x1, int(seg.y1) + 18), 4)
+        # Connect every adjacent pair of spring nodes
+        for i in range(len(seg.nx) - 1):
+            ax = int(seg.nx[i]     - cam_x)
+            bx = int(seg.nx[i + 1] - cam_x)
+            if bx < -4 or ax > SCREEN_W + 4:
+                continue
+            pygame.draw.line(surface, WHITE,
+                             (ax, int(seg.y[i])),
+                             (bx, int(seg.y[i + 1])), 4)
+        # Vertical drop at the left edge of each segment
+        sx = int(seg.x1 - cam_x)
+        if -10 <= sx <= SCREEN_W + 10:
+            pygame.draw.line(surface, WHITE,
+                             (sx, int(seg.y[0])), (sx, int(seg.y[0]) + 18), 4)
 
     for wall in walls:
         wx, wy, ww, wh = wall
@@ -456,6 +509,8 @@ def main():
 
         # ── game logic ────────────────────────────────────────────────────
         if state == "playing" and intro_done:
+            for seg in segs:
+                seg.update()
             char.update(segs, walls, keys, stars)
 
             # Camera – smooth follow, slightly ahead in movement direction
