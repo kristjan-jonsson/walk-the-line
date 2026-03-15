@@ -21,7 +21,7 @@ import pygame
 from constants import SCREEN_H, GRAVITY, JUMP_FORCE, MOVE_SPEED
 
 # ── Sprite-sheet constants ────────────────────────────────────────────────────
-_SPRITE_DIR = os.path.join(os.path.dirname(__file__), 'sprites')
+_SPRITE_DIR = os.path.join(os.path.dirname(str(__file__)), 'sprites')
 
 # Scale 512×512 source images so the character is ~54 px tall (= CHAR_H).
 _SCALE  = 0.3125          # 512 → 160 px
@@ -270,7 +270,7 @@ class MrLinea:
             rn, ln, rf, lf = [], [], [], []
             for fname in filenames:
                 raw = pygame.image.load(
-                    os.path.join(_SPRITE_DIR, fname)
+                    str(os.path.join(_SPRITE_DIR, fname))
                 ).convert_alpha()
                 scaled = pygame.transform.scale(raw, (_SURF_W, _SURF_H))
                 rn.append(scaled)
