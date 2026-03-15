@@ -87,8 +87,7 @@ To enable Pages in your fork: go to **Settings → Pages** and set the source to
 This project is licensed under the Apache License 2.0. See the `LICENSE` file for details.
 
 ## Credits
-
-Thanks to RGS_Dev (https://rgsdev.itch.io) for the open character design that is used for main character even though it will be replaced in later stage.
+Special thanks to Raphael Concalves (https://rgsdev.itch.io) for the Creative Common 0 Public Domain main character artwork (credit not required).
 
 ## Disclaimer
 
