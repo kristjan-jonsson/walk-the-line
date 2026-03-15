@@ -85,3 +85,15 @@ The workflow at `.github/workflows/pages.yml` automatically:
 5. Deploys it to GitHub Pages
 
 To enable Pages in your fork: go to **Settings → Pages** and set the source to **GitHub Actions**.
+
+## License
+
+This project is licensed under the Apache License 2.0. See the `LICENSE` file for details.
+
+## Credits
+
+Character design by RGS_Dev (https://rgsdev.itch.io).
+
+## Disclaimer
+
+This is an open source project provided "AS IS", without warranty of any kind. See the Apache 2.0 license in `LICENSE` for the full terms and conditions.
