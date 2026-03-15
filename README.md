@@ -28,27 +28,23 @@ The game is automatically built and deployed to GitHub Pages on every push to `m
 [uv](https://docs.astral.sh/uv/) manages the virtual environment automatically:
 
 ```bash
-uv init
+uv add pygame
 uv run python la_linea.py
 ```
 
 ## Build for the web (pygbag)
 
-### Using uv (recommended)
+### Using uv (recommended), use --disable-sound-format-error if error in build
 
 ```bash
-uv init
-uv run -m pygbag --build --width 960 --height 600 .
+uv add pygame pygbag
+uv run -m pygbag --disable-sound-format-error .
 ```
 
 Then serve the result with Python's built-in HTTP server:
 
 ```bash
-# Linux / macOS
-uv run -m pygbag --width 960 --height 600 .
-
-# Windows (PowerShell)
-uv run -m pygbag --width 960 --height 600 .
+uv run -m pygbag --disable-sound-format-error [--width 960 --height 600] .
 ```
 
 Open http://localhost:8000 in your browser to play.
