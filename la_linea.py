@@ -8,6 +8,7 @@ Controls:
   Arrow Right / D  - Walk right
   Arrow Left  / A  - Walk left
   Space / Up  / W  - Jump
+  Shift           - Run
   R               - Restart
   Escape          - Quit
 """
@@ -565,7 +566,7 @@ async def main():
         # Controls hint (fades out)
         if tick < 200:
             alpha = max(0, 255 - int(255 * (tick - 140) / 60)) if tick > 140 else 255
-            hint = font.render("left/right Move    Space / up Jump    R Restart    M Mute", True,
+            hint = font.render("left/right Move shift Sprint    space/up Jump    R Restart    M Mute", True,
                                (alpha, alpha, alpha))
             screen.blit(hint, (SCREEN_W // 2 - hint.get_width() // 2, SCREEN_H - 38))
 
