@@ -380,7 +380,7 @@ async def main():
     clock = pygame.time.Clock()
 
     sounds     = SoundEngine()
-    sounds.start_music()
+    # sounds.start_music()
 
     font       = pygame.font.SysFont("Arial", 26)
     big_font   = pygame.font.SysFont("Arial", 68, bold=True)
