@@ -92,7 +92,7 @@ This project is licensed under the Apache License 2.0. See the `LICENSE` file fo
 
 ## Credits
 
-Character design by RGS_Dev (https://rgsdev.itch.io).
+Thanks to RGS_Dev (https://rgsdev.itch.io) for the open character design that is used for main character even though it will be replaced in later stage.
 
 ## Disclaimer
 
