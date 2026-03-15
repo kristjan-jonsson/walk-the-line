@@ -565,7 +565,7 @@ async def main():
         # Controls hint (fades out)
         if tick < 200:
             alpha = max(0, 255 - int(255 * (tick - 140) / 60)) if tick > 140 else 255
-            hint = font.render("← → Move    Space / ↑ Jump    R Restart    M Mute", True,
+            hint = font.render("Left/Right Move    Space / Up Jump    R Restart    M Mute", True,
                                (alpha, alpha, alpha))
             screen.blit(hint, (SCREEN_W // 2 - hint.get_width() // 2, SCREEN_H - 38))
 
