@@ -22,6 +22,17 @@ The game is automatically built and deployed to GitHub Pages on every push to `m
 
 ## Run locally (desktop)
 
+### Using uv (recommended)
+
+[uv](https://docs.astral.sh/uv/) manages the virtual environment automatically:
+
+```bash
+uv sync
+uv run python la_linea.py
+```
+
+### Using pip
+
 ```bash
 pip install pygame-ce
 python la_linea.py
@@ -29,18 +40,51 @@ python la_linea.py
 
 ## Build for the web (pygbag)
 
+### Using uv (recommended)
+
+```bash
+uv sync
+uv run python -m pygbag --build --width 960 --height 600 la_linea.py
+```
+
+Then serve the result with Python's built-in HTTP server:
+
+```bash
+# Linux / macOS
+python -m http.server 8000 --directory build/web
+
+# Windows (PowerShell)
+python -m http.server 8000 --directory build\web
+```
+
+Open http://localhost:8000 in your browser to play.
+
+### Using pip
+
 ```bash
 pip install -r requirements.txt
 python -m pygbag --build --width 960 --height 600 la_linea.py
-# Output is written to build/web/
-# Open build/web/index.html in a browser to test locally
+python -m http.server 8000 --directory build/web
 ```
 
-To serve and test in a browser locally:
+### Why `pygbag.toml` matters
+
+pygbag scans the entire project directory when packaging. Without an ignore list it
+picks up files from the local virtual environment (e.g.
+`.venv/Lib/site-packages/pygame/examples/data/boom.wav`) and fails because it cannot
+package arbitrary WAV files from dependencies.
+
+The `pygbag.toml` at the repo root tells pygbag to skip `.venv` and other tooling
+directories so the build succeeds cleanly.
+
+### Cleaning build artifacts
 
 ```bash
-python -m pygbag la_linea.py
-# Then open http://localhost:8000
+# Linux / macOS
+rm -rf build/
+
+# Windows (PowerShell)
+Remove-Item -Recurse -Force build\
 ```
 
 ## GitHub Actions deployment
