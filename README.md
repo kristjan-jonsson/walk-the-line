@@ -15,6 +15,7 @@ The game is automatically built and deployed to GitHub Pages on every push to `m
 |---|---|
 | `→` / `D` | Walk right |
 | `←` / `A` | Walk left |
+| `Shift` | Sprint |
 | `Space` / `↑` / `W` | Jump |
 | `R` | Restart |
 | `M` | Mute music |
@@ -27,15 +28,8 @@ The game is automatically built and deployed to GitHub Pages on every push to `m
 [uv](https://docs.astral.sh/uv/) manages the virtual environment automatically:
 
 ```bash
-uv sync
+uv init
 uv run python la_linea.py
-```
-
-### Using pip
-
-```bash
-pip install pygame-ce
-python la_linea.py
 ```
 
 ## Build for the web (pygbag)
@@ -43,29 +37,22 @@ python la_linea.py
 ### Using uv (recommended)
 
 ```bash
-uv sync
-uv run python -m pygbag --build --width 960 --height 600 la_linea.py
+uv init
+uv run -m pygbag --build --width 960 --height 600 .
 ```
 
 Then serve the result with Python's built-in HTTP server:
 
 ```bash
 # Linux / macOS
-python -m http.server 8000 --directory build/web
+uv run -m pygbag --width 960 --height 600 .
 
 # Windows (PowerShell)
-python -m http.server 8000 --directory build\web
+uv run -m pygbag --width 960 --height 600 .
 ```
 
 Open http://localhost:8000 in your browser to play.
 
-### Using pip
-
-```bash
-pip install -r requirements.txt
-python -m pygbag --build --width 960 --height 600 la_linea.py
-python -m http.server 8000 --directory build/web
-```
 
 ### Why `pygbag.toml` matters
 
