@@ -579,7 +579,7 @@ async def main():
             overlay = pygame.Surface((SCREEN_W, 140), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 100))
             screen.blit(overlay, (0, SCREEN_H // 2 - 20))
-            msg = big_font.render("OHH NOOO!", True, WHITE)
+            msg = big_font.render("GAME OVER!", True, WHITE)
             screen.blit(msg, (SCREEN_W // 2 - msg.get_width() // 2, SCREEN_H // 2 - 10))
             sub = font.render(
                 f"{int(max(0, char.x - 60))} m  ★ {char.stars_collected}    Press R to try again",
