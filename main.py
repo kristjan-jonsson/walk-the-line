@@ -8,11 +8,13 @@ Controls:
   Arrow Right / D  - Walk right
   Arrow Left  / A  - Walk left
   Space / Up  / W  - Jump
+  Shift           - Run
   R               - Restart
   Escape          - Quit
 """
 
 import asyncio
+import os
 import pygame
 import math
 import random
@@ -170,80 +172,6 @@ class SoundEngine:
                 phase = (phase + freq / sr) % 1.0
         return cls._pack(samples)
 
-    @classmethod
-    def _music(cls):
-        """
-        La Linea-style accordion loop in C major, 122 BPM.
-        Accordion timbre = layered harmonics with fast attack / sustained envelope.
-        """
-        BPM  = 122
-        beat = 60.0 / BPM
-        sr   = cls.SR
-        s    = cls._sin
-
-        # (note_name, octave, beats)
-        FREQS = {
-            'C4':261.63,'D4':293.66,'E4':329.63,'F4':349.23,
-            'G4':392.00,'A4':440.00,'B4':493.88,
-            'C5':523.25,'D5':587.33,'E5':659.25,'G5':783.99,
-        }
-
-        melody = [
-            # Phrase A – cheerful climb
-            ('G4',.5),('A4',.5),('B4',.5),('C5',.5),
-            ('B4',.5),('A4',.5),('G4',1.5),
-            ('A4',.5),('B4',.5),('C5',.5),('D5',.5),
-            ('C5',.5),('B4',.5),('A4',1.5),
-            # Phrase B – playful turn
-            ('G4',.5),('A4',.5),('B4',.5),('D5',.5),
-            ('C5',.5),('B4',.5),('A4',.5),('G4',.5),
-            ('E4',.5),('G4',.5),('A4',.5),('G4',.5),('E4',2.0),
-            # Phrase C – builds upward
-            ('C5',.5),('B4',.5),('A4',.5),('G4',.5),
-            ('A4',.5),('B4',.5),('C5',1.5),
-            ('D5',.5),('C5',.5),('B4',.5),('A4',.5),
-            ('G4',.5),('A4',.5),('B4',1.5),
-            # Phrase D – resolution back to start
-            ('G4',.5),('E4',.5),('G4',.5),('A4',.5),
-            ('B4',.5),('A4',.5),('G4',.5),('E4',.5),
-            ('G4',3.0),
-        ]
-
-        total_n = int(sr * sum(b for _, b in melody) * beat) + sr
-        buf     = [0.0] * total_n
-        pos     = 0
-
-        for note, beats in melody:
-            freq     = FREQS[note]
-            dur      = beats * beat
-            note_dur = dur * 0.86            # slight gap between notes
-            n        = int(sr * dur)
-            n_note   = int(sr * note_dur)
-            phase    = 0.0
-            ph_inc   = freq / sr
-
-            for i in range(n_note):
-                t    = i / sr
-                atk  = min(t * 80.0, 1.0)
-                rel  = min((note_dur - t) * 55.0, 1.0)
-                env  = atk * rel * 0.26
-                # Accordion: 5 harmonics
-                val  = (s(phase)             * 0.50 +
-                        s((phase * 2) % 1.0) * 0.25 +
-                        s((phase * 3) % 1.0) * 0.14 +
-                        s((phase * 4) % 1.0) * 0.07 +
-                        s((phase * 5) % 1.0) * 0.04)
-                if pos + i < total_n:
-                    buf[pos + i] += val * env
-                phase = (phase + ph_inc) % 1.0
-            pos += n
-
-        # Soft normalise
-        peak = max(abs(v) for v in buf) or 1.0
-        if peak > 0.92:
-            buf = [v / peak * 0.92 for v in buf]
-        return cls._pack(buf[:pos])
-
     # ── public API ────────────────────────────────────────────────────────
 
     def __init__(self):
@@ -254,15 +182,14 @@ class SoundEngine:
         self.snd_hit      = self._hit()
         self.snd_die      = self._die()
         self.snd_win      = self._win()
-        self.snd_music    = self._music()
-        self._music_ch    = pygame.mixer.Channel(0)
+        pygame.mixer.music.load(os.path.join("sound", "background-music.ogg"))
 
     def start_music(self):
-        self._music_ch.set_volume(0.55)
-        self._music_ch.play(self.snd_music, loops=-1)
+        pygame.mixer.music.set_volume(0.55)
+        pygame.mixer.music.play(loops=-1)
 
     def stop_music(self):
-        self._music_ch.stop()
+        pygame.mixer.music.stop()
 
     def play(self, snd, vol=1.0):
         ch = snd.play()
@@ -380,7 +307,7 @@ async def main():
     clock = pygame.time.Clock()
 
     sounds     = SoundEngine()
-    # sounds.start_music()
+    sounds.start_music()
 
     font       = pygame.font.SysFont("Arial", 26)
     big_font   = pygame.font.SysFont("Arial", 68, bold=True)
@@ -441,9 +368,9 @@ async def main():
                 if event.key == pygame.K_m:
                     music_muted = not music_muted
                     if music_muted:
-                        sounds._music_ch.set_volume(0.0)
+                        pygame.mixer.music.set_volume(0.0)
                     else:
-                        sounds._music_ch.set_volume(0.55)
+                        pygame.mixer.music.set_volume(0.55)
 
         # ── intro ──────────────────────────────────────────────────────────
         if not intro_done:
@@ -565,7 +492,7 @@ async def main():
         # Controls hint (fades out)
         if tick < 200:
             alpha = max(0, 255 - int(255 * (tick - 140) / 60)) if tick > 140 else 255
-            hint = font.render("left/right Move    Space / up Jump    R Restart    M Mute", True,
+            hint = font.render("left/right Move shift Sprint    space/up Jump    R Restart    M Mute", True,
                                (alpha, alpha, alpha))
             screen.blit(hint, (SCREEN_W // 2 - hint.get_width() // 2, SCREEN_H - 38))
 
