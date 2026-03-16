@@ -35,6 +35,7 @@ class LevelGenerator:
         self._player_x        = 0.0   # updated each frame for difficulty scaling
         self._next_flip_x     = 2500.0  # first gravity-flip trigger
         self._no_wall_until   = 0.0    # suppress walls near flip triggers
+        self._gravity_flipped = False  # tracks which side stars should appear on
 
         self.flip_triggers  = []   # list of world-x positions where gravity toggles
         self.enemy_spawns   = []   # list of (x, y) tuples consumed by main loop
@@ -108,7 +109,8 @@ class LevelGenerator:
         self._path = [(self._x, self._y)]
 
     def _drop_star(self):
-        self.stars.append((self._x, self._y - 52))
+        offset = 52 if self._gravity_flipped else -52
+        self.stars.append((self._x, self._y + offset))
         self._last_star_at = self._x
 
     def _star_if_due(self):
@@ -149,6 +151,7 @@ class LevelGenerator:
         self._flat(approach)
         # Trigger placed here: on flat ground, approach already behind it
         self.flip_triggers.append(self._x)
+        self._gravity_flipped = not self._gravity_flipped
         self._next_flip_x   = self._x + self._rng.randint(1400, 2200)
         self._no_wall_until = self._x + landing + 200   # clear zone ahead of trigger
         self._flat(landing)
