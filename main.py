@@ -27,7 +27,7 @@ from character   import MrLinea
 from clouds      import CloudSystem
 from enemies     import Enemy, draw_hearts
 
-pygame.mixer.pre_init(22050, -16, 1, 512)
+pygame.mixer.pre_init(44100, -16, 2, 2048)
 pygame.init()
 pygame.mixer.set_num_channels(8)
 
@@ -44,7 +44,7 @@ PARTICLE_C  = (255, 255, 255)
 # ─────────────────────────────────────────────────────────────────────────────
 
 class SoundEngine:
-    SR   = 22050          # sample rate (must match pre_init above)
+    SR   = 44100          # sample rate (must match pre_init above)
     # Sine lookup table – much faster than math.sin() in a tight loop
     _N   = 4096
     _LUT = [math.sin(2 * math.pi * i / 4096) for i in range(4096)]
