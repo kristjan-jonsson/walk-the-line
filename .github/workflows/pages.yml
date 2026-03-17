@@ -26,8 +26,11 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
       - name: Build with pygbag
-        run: python -m pygbag --build --disable-sound-format-error --width 960 --height 600 main.py
+        run: python -m pygbag --build --width 960 --height 600 main.py
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
