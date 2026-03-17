@@ -1,0 +1,40 @@
+{
+  "name": "Default",
+  "description": "Endless procedural run with the default difficulty curve.",
+
+  "opening": [
+    {"type": "flat",  "length": 220},
+    {"type": "star"},
+    {"type": "flat",  "length": 120}
+  ],
+
+  "generation": {
+    "min_y": 180,
+    "max_y": 480,
+    "star_every": 380,
+    "gap_max": 115,
+    "difficulty_distance": 5000,
+    "first_flip_x": 2500,
+    "flip_interval": [1400, 2200],
+    "flip_approach": [120, 180],
+    "flip_landing":  [120, 180],
+    "wall_chance":   0.28,
+    "enemy_chance":  0.30,
+    "chunk_weights": {
+      "flat":      [4, 1],
+      "hill":      2,
+      "valley":    2,
+      "ramp_up":   2,
+      "ramp_down": 2,
+      "gap":       [1, 6]
+    },
+    "chunk_params": {
+      "flat":      {"length": [80, 180]},
+      "hill":      {"up_len": [100, 200], "peak_len": [60, 120], "down_len": [100, 200]},
+      "valley":    {"down_len": [80, 160], "floor_len": [60, 100], "up_len": [80, 160]},
+      "ramp_up":   {"length": [120, 220], "flat": [60, 120]},
+      "ramp_down": {"length": [120, 220], "flat": [60, 120]},
+      "gap":       {"approach": [80, 160], "landing": [60, 120], "width_base": [55, 80], "width_scale": [25, 35]}
+    }
+  }
+}

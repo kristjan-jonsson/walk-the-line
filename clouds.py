@@ -91,9 +91,12 @@ class CloudSystem:
 
     # ── public API ────────────────────────────────────────────────────────
 
-    def update(self, player_x):
-        self._extend_to(player_x + self._LOOKAHEAD)
-        self._prune_before(player_x - self._PRUNE_BEHIND)
+    def update(self, player_x, cam_x):
+        # Clouds live in world-space but render with parallax; use the
+        # parallax-adjusted camera position so extend/prune are correct.
+        apparent_x = cam_x * _PARALLAX
+        self._extend_to(apparent_x + self._LOOKAHEAD)
+        self._prune_before(apparent_x - self._PRUNE_BEHIND)
 
     def draw(self, surface, cam_x, tick):
         for cloud in self.clouds:
