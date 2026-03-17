@@ -37,6 +37,7 @@ jobs:
       - name: Build with pygbag
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
         run: uv run python -m pygbag --build --disable-sound-format-error --width 960 --height 600 main.py
 =======
         run: python -m pygbag --build --width 960 --height 600 la_linea.py
@@ -44,6 +45,9 @@ jobs:
 =======
         run: python -m pygbag --build --width 960 --height 600 la_linea.py
 >>>>>>> parent of e9b035d (Change build script to use main.py instead of la_linea.py)
+=======
+        run: uv run python -m pygbag --build --disable-sound-format-error --width 960 --height 600 main.py
+>>>>>>> 2e6b3b4892d5c906131dc2634c0546c5cbd42047
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

@@ -26,6 +26,7 @@ from level       import LevelGenerator
 from character   import Character
 from clouds      import CloudSystem
 from enemies     import Enemy, draw_hearts
+import highscore as hs
 
 pygame.mixer.pre_init(44100, -16, 2, 2048)
 pygame.init()
@@ -345,9 +346,11 @@ class Game:
         self.font       = pygame.font.SysFont("Arial", 26)
         self.big_font   = pygame.font.SysFont("Arial", 68, bold=True)
         self.title_font = pygame.font.SysFont("Arial", 38, bold=True)
-        self.music_muted = False
-        self.intro_done  = False
-        self.intro_ticks = self._INTRO_FRAMES
+        self.music_muted  = False
+        self.intro_done   = False
+        self.intro_ticks  = self._INTRO_FRAMES
+        self.best_score   = hs.load()   # metres – persisted across sessions
+        self.new_record   = False
         self._reset()
 
     # ── setup / reset ────────────────────────────────────────────────────────
@@ -365,6 +368,7 @@ class Game:
         self.bg_color     = list(self.BG_PALETTE[0])
         self.particles    = []
         self.hand_alpha   = 0
+        self.new_record   = False
 
     # ── level progression ────────────────────────────────────────────────────
 
@@ -504,6 +508,11 @@ class Game:
                 self.state = "dead"
                 self.hand_alpha = 0
                 self._spawn_death_particles()
+                score = int(max(0, self.char.x - 60))
+                if score > self.best_score:
+                    self.best_score = score
+                    self.new_record = True
+                    hs.save(score)
             else:
                 self._check_level_transition()
 
@@ -517,12 +526,14 @@ class Game:
     def _draw_hud(self):
         star_txt = self.font.render(f"★ {self.char.stars_collected}", True, STAR_COLOR)
         dist_txt = self.font.render(f"{int(max(0, self.char.x - 60))} m", True, WHITE)
+        best_txt = self.font.render(f"Best: {self.best_score} m", True, (180, 220, 255))
         self.screen.blit(star_txt, (20, 20))
         draw_hearts(self.screen, self.char.lives)
         self.screen.blit(dist_txt, (SCREEN_W - dist_txt.get_width() - 20, 20))
+        self.screen.blit(best_txt, (SCREEN_W - best_txt.get_width() - 20, 50))
         mute_txt = self.font.render("♪ M" if not self.music_muted else "✕ M", True,
                                     (180, 180, 180) if not self.music_muted else (220, 80, 80))
-        self.screen.blit(mute_txt, (SCREEN_W - mute_txt.get_width() - 20, 50))
+        self.screen.blit(mute_txt, (SCREEN_W - mute_txt.get_width() - 20, 80))
         if self.tick < 200:
             alpha = max(0, 255 - int(255 * (self.tick - 140) / 60)) if self.tick > 140 else 255
             hint  = self.font.render(
@@ -532,15 +543,23 @@ class Game:
 
     def _draw_game_over(self):
         draw_hand_pencil(self.screen, SCREEN_W // 2 - 10, SCREEN_H // 2 - 80, self.hand_alpha)
-        overlay = pygame.Surface((SCREEN_W, 140), pygame.SRCALPHA)
+        overlay = pygame.Surface((SCREEN_W, 160), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 100))
         self.screen.blit(overlay, (0, SCREEN_H // 2 - 20))
         msg = self.big_font.render("GAME OVER!", True, WHITE)
         self.screen.blit(msg, (SCREEN_W // 2 - msg.get_width() // 2, SCREEN_H // 2 - 10))
-        sub = self.font.render(
-            f"{int(max(0, self.char.x - 60))} m  ★ {self.char.stars_collected}    Press R to try again",
-            True, (220, 220, 220))
-        self.screen.blit(sub, (SCREEN_W // 2 - sub.get_width() // 2, SCREEN_H // 2 + 60))
+        score = int(max(0, self.char.x - 60))
+        if self.new_record:
+            rec_txt = self.font.render("★  NEW HIGH SCORE!  ★", True, STAR_COLOR)
+            self.screen.blit(rec_txt, (SCREEN_W // 2 - rec_txt.get_width() // 2, SCREEN_H // 2 + 52))
+            sub = self.font.render(
+                f"{score} m  ★ {self.char.stars_collected}    Press R to try again",
+                True, (220, 220, 220))
+        else:
+            sub = self.font.render(
+                f"{score} m  ★ {self.char.stars_collected}    Best: {self.best_score} m    Press R to try again",
+                True, (220, 220, 220))
+        self.screen.blit(sub, (SCREEN_W // 2 - sub.get_width() // 2, SCREEN_H // 2 + 80))
 
     def _draw_intro(self):
         fade = pygame.Surface((SCREEN_W, SCREEN_H))
