@@ -7,7 +7,7 @@ This project is an original work and is not affiliated with any existing animate
 
 ## Screenshot
 
-![Walk the Line screenshot](assets/screenshot.png)
+![Walk the Line screenshot](assets\walk-the-line-in-game-demo-0.pngg)
 
 ## Play in the browser
 
