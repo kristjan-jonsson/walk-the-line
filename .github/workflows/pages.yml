@@ -26,11 +26,16 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install dependencies (uv.lock)
+        run: uv sync --locked --no-dev
 
       - name: Build with pygbag
-        run: python -m pygbag --build --width 960 --height 600 main.py
+        run: uv run python -m pygbag --build --disable-sound-format-error --width 960 --height 600 main.py
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
