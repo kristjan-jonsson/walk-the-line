@@ -298,22 +298,10 @@ def draw_flip_triggers(surface, flip_triggers, segments, cam_x, t):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Main
+# Game
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def main():
-    screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
-    pygame.display.set_caption("Walk the Line")
-    clock = pygame.time.Clock()
-
-    sounds     = SoundEngine()
-    sounds.start_music()
-
-    font       = pygame.font.SysFont("Arial", 26)
-    big_font   = pygame.font.SysFont("Arial", 68, bold=True)
-    title_font = pygame.font.SysFont("Arial", 38, bold=True)
-
-    # Background colour palette (shifts as you progress through the level)
+class Game:
     BG_PALETTE = [
         (65,  120, 185),   # sky blue
         (180, 100,  65),   # warm terracotta
@@ -322,211 +310,243 @@ async def main():
         (190, 160,  50),   # golden afternoon
     ]
 
-    def new_game():
-        gen    = LevelGenerator()
-        char   = Character(60, gen.segments[0].y1)
-        clouds = CloudSystem()
-        return gen, char, clouds, []   # enemies start empty
+    # Camera
+    _CAMERA_LEAD   = 50      # px anticipation ahead in facing direction
+    _CAMERA_SMOOTH = 0.10    # lerp factor per frame
+    _CAMERA_OFFSET = 0.38    # x offset as fraction of screen width
 
-    gen, char, clouds, enemies = new_game()
+    # Background
+    _PALETTE_PERIOD = 2000   # px between colour changes
 
-    camera_x   = 0.0
-    state      = "playing"    # playing | dead
-    tick       = 0
-    bg_color   = list(BG_PALETTE[0])
-    particles  = []
-    hand_alpha = 0
-    music_muted = False
+    # Particles
+    _PARTICLE_GRAVITY = 0.35
+    _PARTICLE_LIFE    = 55
+    _PARTICLE_COUNT   = 28
 
-    # ── intro animation ───────────────────────────────────────────────────
-    intro_ticks  = 60       # short pause before play
-    intro_done   = False
+    # Gameplay
+    _STOMP_BOUNCE  = 0.6     # vy multiplier for stomp rebound
+    _MUSIC_VOLUME  = 0.55
+    _INTRO_FRAMES  = 60      # fade-in duration in frames
 
-    running = True
-    while running:
-        dt   = clock.tick(FPS)
-        keys = pygame.key.get_pressed()
-        tick += 1
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
+        pygame.display.set_caption("Walk the Line")
+        self.clock      = pygame.time.Clock()
+        self.sounds     = SoundEngine()
+        self.sounds.start_music()
+        self.font       = pygame.font.SysFont("Arial", 26)
+        self.big_font   = pygame.font.SysFont("Arial", 68, bold=True)
+        self.title_font = pygame.font.SysFont("Arial", 38, bold=True)
+        self.music_muted = False
+        self.intro_done  = False
+        self.intro_ticks = self._INTRO_FRAMES
+        self._reset()
 
-        # ── events ────────────────────────────────────────────────────────
+    # ── setup / reset ────────────────────────────────────────────────────────
+
+    def _reset(self):
+        self.gen      = LevelGenerator()
+        self.char     = Character(60, self.gen.segments[0].y1)
+        self.clouds   = CloudSystem()
+        self.enemies  = []
+        self.camera_x = 0.0
+        self.state    = "playing"   # playing | dead
+        self.tick     = 0
+        self.bg_color = list(self.BG_PALETTE[0])
+        self.particles  = []
+        self.hand_alpha = 0
+
+    # ── event handling ───────────────────────────────────────────────────────
+
+    def handle_events(self):
+        """Process pygame events. Returns False when the game should quit."""
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                running = False
+                return False
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    running = False
+                    return False
                 if event.key == pygame.K_r:
-                    gen, char, clouds, enemies = new_game()
-                    camera_x   = 0.0
-                    state      = "playing"
-                    particles  = []
-                    bg_color   = list(BG_PALETTE[0])
-                    hand_alpha = 0
-                    tick       = 0
-                    if not music_muted:
-                        sounds.start_music()
+                    self._reset()
+                    if not self.music_muted:
+                        self.sounds.start_music()
                 if event.key == pygame.K_m:
-                    music_muted = not music_muted
-                    if music_muted:
-                        pygame.mixer.music.set_volume(0.0)
-                    else:
-                        pygame.mixer.music.set_volume(0.55)
+                    self.music_muted = not self.music_muted
+                    pygame.mixer.music.set_volume(0.0 if self.music_muted else self._MUSIC_VOLUME)
+        return True
 
-        # ── intro ──────────────────────────────────────────────────────────
-        if not intro_done:
-            intro_ticks -= 1
-            if intro_ticks <= 0:
-                intro_done = True
+    # ── update helpers ───────────────────────────────────────────────────────
 
-        # ── game logic ────────────────────────────────────────────────────
-        if state == "playing" and intro_done:
-            gen.update(char.x)
-            clouds.update(char.x)
-            for seg in gen.segments:
-                seg.update()
-            char.update(gen.segments, gen.walls, keys, gen.stars)
+    def _update_enemies(self):
+        for ex, ey in self.gen.take_enemy_spawns():
+            self.enemies.append(Enemy(ex, ey))
+        for enemy in self.enemies:
+            enemy.update(self.char.x, self.char.y, self.gen.segments)
+        self.enemies = [e for e in self.enemies if e.x > self.char.x - self.gen.PRUNE_BEHIND]
+        # Stomp (normal gravity only)
+        if not self.char.gravity_flipped:
+            for enemy in self.enemies:
+                if enemy.stomped_by(self.char.x, self.char.y, self.char.vy):
+                    enemy.alive = False
+                    self.char.vy = JUMP_FORCE * self._STOMP_BOUNCE
+        # Contact damage
+        for enemy in self.enemies:
+            if enemy.hits_player(self.char.x, self.char.y) and enemy.can_hit():
+                self.char.take_damage()
+                enemy.register_hit()
 
-            # ── enemies ───────────────────────────────────────────────────
-            # Convert new spawn points into Enemy objects
-            while gen.enemy_spawns:
-                ex, ey = gen.enemy_spawns.pop(0)
-                enemies.append(Enemy(ex, ey))
-            # Update and prune
-            for enemy in enemies:
-                enemy.update(char.x, char.y, gen.segments)
-            enemies = [e for e in enemies if e.x > char.x - gen.PRUNE_BEHIND]
-            # Stomp (normal gravity only)
-            if not char.gravity_flipped:
-                for enemy in enemies:
-                    if enemy.stomped_by(char.x, char.y, char.vy):
-                        enemy.alive = False
-                        char.vy = JUMP_FORCE * 0.6
-            # Contact damage
-            for enemy in enemies:
-                if enemy.hits_player(char.x, char.y) and enemy.can_hit():
-                    char.take_damage()
-                    enemy.register_hit()
+    def _handle_gravity_flips(self):
+        pending = []
+        for fx in self.gen.flip_triggers:
+            if self.char.x > fx:
+                self.char.flip_gravity()
+            else:
+                pending.append(fx)
+        self.gen.flip_triggers = pending
 
-            # ── gravity-flip triggers ──────────────────────────────────────
-            pending = []
-            for fx in gen.flip_triggers:
-                if char.x > fx:
-                    char.gravity_flipped = not char.gravity_flipped
-                    char.on_ground = False   # let physics re-attach to the new side
-                else:
-                    pending.append(fx)
-            gen.flip_triggers = pending
+    def _handle_sounds(self):
+        events, snd = self.char.events, self.sounds
+        # if 'jump' in events:  snd.play(snd.snd_jump,  0.7)
+        if 'land' in events:  snd.play(snd.snd_land,  0.6)
+        # if 'step' in events:  snd.play(snd.snd_footstep, 0.5)
+        if 'star' in events:  snd.play(snd.snd_star,  0.9)
+        if 'hit'  in events:  snd.play(snd.snd_hit,   0.8)
+        if 'die'  in events:  snd.play(snd.snd_die,   0.8)
+        self.char.events.clear()
 
-            # ── sound events ──────────────────────────────────────────────
-            # if char.ev_jump:  sounds.play(sounds.snd_jump,  0.7)
-            if char.ev_land:  sounds.play(sounds.snd_land,  0.6)
-            # if char.ev_step:  sounds.play(sounds.snd_footstep, 0.5)
-            if char.ev_star:  sounds.play(sounds.snd_star,  0.9)
-            if char.ev_hit:   sounds.play(sounds.snd_hit,   0.8)
-            if char.ev_die:   sounds.play(sounds.snd_die,   0.8)
-            char.ev_jump = char.ev_land = char.ev_step = char.ev_star = char.ev_hit = char.ev_die = False
+    def _update_camera(self):
+        lead     = self._CAMERA_LEAD if self.char.facing_right else -self._CAMERA_LEAD
+        target_x = self.char.x - SCREEN_W * self._CAMERA_OFFSET + lead
+        self.camera_x += (target_x - self.camera_x) * self._CAMERA_SMOOTH
+        self.camera_x  = max(0.0, self.camera_x)
 
-            # Camera – smooth follow, slightly ahead in movement direction
-            lead     = 50 if char.facing_right else -50
-            target_x = char.x - SCREEN_W * 0.38 + lead
-            camera_x += (target_x - camera_x) * 0.10
-            camera_x  = max(0.0, camera_x)
-
-            # Background colour switches every 2000 px
-            pal_idx  = int(char.x / 2000.0) % len(BG_PALETTE)
-            bg_color = list(BG_PALETTE[pal_idx])
-
-            # Death
-            if not char.alive:
-                state = "dead"
-                hand_alpha = 0
-                for _ in range(28):
-                    particles.append({
-                        "x":  char.x, "y": char.y - 20,
-                        "vx": random.uniform(-6, 6),
-                        "vy": random.uniform(-9, -1),
-                        "life": 55,
-                    })
-
-        # ── particles ─────────────────────────────────────────────────────
-        for p in particles:
+    def _update_particles(self):
+        for p in self.particles:
             p["x"]  += p["vx"]
             p["y"]  += p["vy"]
-            p["vy"] += 0.35
+            p["vy"] += self._PARTICLE_GRAVITY
             p["life"] -= 1
-        particles = [p for p in particles if p["life"] > 0]
+        self.particles = [p for p in self.particles if p["life"] > 0]
 
-        # ── hand animation ────────────────────────────────────────────────
-        if state == "dead":
-            hand_alpha = min(255, hand_alpha + 8)
+    def _spawn_death_particles(self):
+        for _ in range(self._PARTICLE_COUNT):
+            self.particles.append({
+                "x":  self.char.x, "y": self.char.y - 20,
+                "vx": random.uniform(-6, 6),
+                "vy": random.uniform(-9, -1),
+                "life": self._PARTICLE_LIFE,
+            })
 
-        # ── draw ──────────────────────────────────────────────────────────
-        screen.fill(tuple(int(c) for c in bg_color))
+    # ── main update ──────────────────────────────────────────────────────────
 
-        clouds.draw(screen, camera_x, tick)
-        draw_terrain(screen, gen.segments, gen.walls, int(camera_x))
-        draw_flip_triggers(screen, gen.flip_triggers, gen.segments, int(camera_x), tick)
-        draw_stars(screen, gen.stars, int(camera_x), tick)
-        for enemy in enemies:
-            enemy.draw(screen, int(camera_x))
-        char.draw(screen, int(camera_x))
+    def update(self, keys):
+        if self.state == "playing" and self.intro_done:
+            self.gen.update(self.char.x)
+            self.clouds.update(self.char.x)
+            for seg in self.gen.segments:
+                seg.update()
+            self.char.update(self.gen.segments, self.gen.walls, keys, self.gen.stars)
+            self._update_enemies()
+            self._handle_gravity_flips()
+            self._handle_sounds()
+            self._update_camera()
 
-        # Particles
-        for p in particles:
-            alpha_f = p["life"] / 55
+            pal_idx = int(self.char.x / self._PALETTE_PERIOD) % len(self.BG_PALETTE)
+            self.bg_color = list(self.BG_PALETTE[pal_idx])
+
+            if not self.char.alive:
+                self.state = "dead"
+                self.hand_alpha = 0
+                self._spawn_death_particles()
+
+        self._update_particles()
+
+        if self.state == "dead":
+            self.hand_alpha = min(255, self.hand_alpha + 8)
+
+    # ── draw helpers ─────────────────────────────────────────────────────────
+
+    def _draw_hud(self):
+        star_txt = self.font.render(f"★ {self.char.stars_collected}", True, STAR_COLOR)
+        dist_txt = self.font.render(f"{int(max(0, self.char.x - 60))} m", True, WHITE)
+        self.screen.blit(star_txt, (20, 20))
+        draw_hearts(self.screen, self.char.lives)
+        self.screen.blit(dist_txt, (SCREEN_W - dist_txt.get_width() - 20, 20))
+        mute_txt = self.font.render("♪ M" if not self.music_muted else "✕ M", True,
+                                    (180, 180, 180) if not self.music_muted else (220, 80, 80))
+        self.screen.blit(mute_txt, (SCREEN_W - mute_txt.get_width() - 20, 50))
+        if self.tick < 200:
+            alpha = max(0, 255 - int(255 * (self.tick - 140) / 60)) if self.tick > 140 else 255
+            hint  = self.font.render(
+                "left/right Move    shift Sprint    space/up Jump    R Restart    M Mute",
+                True, (alpha, alpha, alpha))
+            self.screen.blit(hint, (SCREEN_W // 2 - hint.get_width() // 2, SCREEN_H - 38))
+
+    def _draw_game_over(self):
+        draw_hand_pencil(self.screen, SCREEN_W // 2 - 10, SCREEN_H // 2 - 80, self.hand_alpha)
+        overlay = pygame.Surface((SCREEN_W, 140), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 100))
+        self.screen.blit(overlay, (0, SCREEN_H // 2 - 20))
+        msg = self.big_font.render("GAME OVER!", True, WHITE)
+        self.screen.blit(msg, (SCREEN_W // 2 - msg.get_width() // 2, SCREEN_H // 2 - 10))
+        sub = self.font.render(
+            f"{int(max(0, self.char.x - 60))} m  ★ {self.char.stars_collected}    Press R to try again",
+            True, (220, 220, 220))
+        self.screen.blit(sub, (SCREEN_W // 2 - sub.get_width() // 2, SCREEN_H // 2 + 60))
+
+    def _draw_intro(self):
+        fade = pygame.Surface((SCREEN_W, SCREEN_H))
+        fade.fill(BLACK)
+        fade.set_alpha(int(255 * self.intro_ticks / self._INTRO_FRAMES))
+        self.screen.blit(fade, (0, 0))
+        title = self.title_font.render("Walk the Line", True, WHITE)
+        self.screen.blit(title, (SCREEN_W // 2 - title.get_width() // 2, SCREEN_H // 2 - 20))
+
+    # ── main draw ────────────────────────────────────────────────────────────
+
+    def draw(self):
+        cam = int(self.camera_x)
+        self.screen.fill(tuple(int(c) for c in self.bg_color))
+        self.clouds.draw(self.screen, self.camera_x, self.tick)
+        draw_terrain(self.screen, self.gen.segments, self.gen.walls, cam)
+        draw_flip_triggers(self.screen, self.gen.flip_triggers, self.gen.segments, cam, self.tick)
+        draw_stars(self.screen, self.gen.stars, cam, self.tick)
+        for enemy in self.enemies:
+            enemy.draw(self.screen, cam)
+        self.char.draw(self.screen, cam)
+        for p in self.particles:
+            alpha_f = p["life"] / self._PARTICLE_LIFE
             r = max(2, int(5 * alpha_f))
-            pygame.draw.circle(screen, WHITE,
-                               (int(p["x"] - camera_x), int(p["y"])), r)
-
-        # ── HUD ───────────────────────────────────────────────────────────
-        collected = char.stars_collected
-        star_txt  = font.render(f"★ {collected}", True, STAR_COLOR)
-        dist_txt  = font.render(f"{int(max(0, char.x - 60))} m", True, WHITE)
-        screen.blit(star_txt, (20, 20))
-        draw_hearts(screen, char.lives)
-        screen.blit(dist_txt, (SCREEN_W - dist_txt.get_width() - 20, 20))
-        mute_txt = font.render("♪ M" if not music_muted else "✕ M", True,
-                               (180, 180, 180) if not music_muted else (220, 80, 80))
-        screen.blit(mute_txt, (SCREEN_W - mute_txt.get_width() - 20, 50))
-
-        # Controls hint (fades out)
-        if tick < 200:
-            alpha = max(0, 255 - int(255 * (tick - 140) / 60)) if tick > 140 else 255
-            hint = font.render("left/right Move shift Sprint    space/up Jump    R Restart    M Mute", True,
-                               (alpha, alpha, alpha))
-            screen.blit(hint, (SCREEN_W // 2 - hint.get_width() // 2, SCREEN_H - 38))
-
-        # ── overlays ──────────────────────────────────────────────────────
-        if state == "dead":
-            # Cartoonist's hand trying to help
-            hx = int(SCREEN_W // 2 - 10)
-            hy = SCREEN_H // 2 - 80
-            draw_hand_pencil(screen, hx, hy, hand_alpha)
-
-            overlay = pygame.Surface((SCREEN_W, 140), pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, 100))
-            screen.blit(overlay, (0, SCREEN_H // 2 - 20))
-            msg = big_font.render("GAME OVER!", True, WHITE)
-            screen.blit(msg, (SCREEN_W // 2 - msg.get_width() // 2, SCREEN_H // 2 - 10))
-            sub = font.render(
-                f"{int(max(0, char.x - 60))} m  ★ {char.stars_collected}    Press R to try again",
-                True, (220, 220, 220))
-            screen.blit(sub, (SCREEN_W // 2 - sub.get_width() // 2, SCREEN_H // 2 + 60))
-
-        if not intro_done:
-            # Fade-in from black
-            fade = pygame.Surface((SCREEN_W, SCREEN_H))
-            fade.fill(BLACK)
-            fade_alpha = int(255 * intro_ticks / 60)
-            fade.set_alpha(fade_alpha)
-            screen.blit(fade, (0, 0))
-            title = title_font.render("Walk the Line", True, WHITE)
-            screen.blit(title, (SCREEN_W // 2 - title.get_width() // 2, SCREEN_H // 2 - 20))
-
+            pygame.draw.circle(self.screen, WHITE,
+                               (int(p["x"] - self.camera_x), int(p["y"])), r)
+        self._draw_hud()
+        if self.state == "dead":
+            self._draw_game_over()
+        if not self.intro_done:
+            self._draw_intro()
         pygame.display.flip()
-        await asyncio.sleep(0)
 
-    pygame.quit()
+    # ── game loop ────────────────────────────────────────────────────────────
+
+    async def run(self):
+        running = True
+        while running:
+            self.clock.tick(FPS)
+            self.tick += 1
+            if not self.intro_done:
+                self.intro_ticks -= 1
+                if self.intro_ticks <= 0:
+                    self.intro_done = True
+            keys    = pygame.key.get_pressed()
+            running = self.handle_events()
+            self.update(keys)
+            self.draw()
+            await asyncio.sleep(0)
+        pygame.quit()
+
+
+async def main():
+    await Game().run()
 
 
 if __name__ == "__main__":

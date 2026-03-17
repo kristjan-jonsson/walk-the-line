@@ -2,8 +2,9 @@
 character.py – player character.
 
 Character handles physics, collision, animation, and drawing.
-Call char.update(...) once per frame; read sound-event flags
-(ev_jump, ev_land, ev_step, ev_star, ev_die) each frame then clear them.
+Call char.update(...) once per frame; read char.events (a set of strings)
+and clear it: char.events.clear(). Event names: 'jump', 'land', 'step',
+'star', 'hit', 'die'.
 
 Drawing uses PNG sprites from sprites/ :
   fighter_walk_0009–0016  (8 frames) – normal walk
@@ -18,7 +19,11 @@ gravity_flipped=True puts the character on the underside of the line:
 import os
 import pygame
 
-from constants import SCREEN_H, GRAVITY, JUMP_FORCE, MOVE_SPEED
+from constants import (SCREEN_H, GRAVITY, JUMP_FORCE, MOVE_SPEED,
+                       RUN_SPEED_MULT, COLLISION_MARGIN,
+                       GROUND_FOLLOW_DOWN, GROUND_FOLLOW_UP,
+                       SPRING_FORCE_MULT, SPRING_FORCE_BASE,
+                       INVINCIBLE_FRAMES, STAR_COLLECT_RX, STAR_COLLECT_RY)
 
 # ── Sprite-sheet constants ────────────────────────────────────────────────────
 _SPRITE_DIR = os.path.join(os.path.dirname(str(__file__)), 'sprites')
@@ -42,7 +47,7 @@ _RUN_FILES  = [f'fighter_run_{i:04d}.png'  for i in range(17, 25)]  # 8 frames
 _IDLE_FILES = [f'fighter_Idle_{i:04d}.png' for i in range(1,   9)]  # 8 frames
 _JUMP_FILES = [f'fighter_jump_{i:04d}.png' for i in range(43, 48)]  # 5 frames
 
-RUN_SPEED = MOVE_SPEED * 1.8
+RUN_SPEED = MOVE_SPEED * RUN_SPEED_MULT
 
 
 # ── Character class ───────────────────────────────────────────────────────────
@@ -70,126 +75,125 @@ class Character:
         self.lives           = 3
         self.invincible_timer = 0
         self.stars_collected = 0
-        # Sound-event flags – read by main loop each frame, then cleared
-        self.ev_jump = False
-        self.ev_land = False
-        self.ev_step = False
-        self.ev_star = False
-        self.ev_die  = False
-        self.ev_hit  = False
+        # Event set – populated during update(), consumed and cleared by main loop
+        self.events: set = set()
         # Sprite cache – populated lazily on first draw (needs display surface)
         self._sprites = None
+
+    # ── Public methods ────────────────────────────────────────────────────────
+
+    def flip_gravity(self):
+        """Reverse gravity direction and detach so physics re-attaches to new side."""
+        self.gravity_flipped = not self.gravity_flipped
+        self.on_ground = False
+
+    def take_damage(self):
+        """Called when an enemy hits the player."""
+        if self.invincible_timer > 0:
+            return
+        self.lives -= 1
+        self.events.add('hit')
+        if self.lives <= 0:
+            self.alive  = False
+            self.events.add('die')
+        else:
+            self.invincible_timer = INVINCIBLE_FRAMES
 
     # ── Physics & collision ───────────────────────────────────────────────────
 
     def update(self, segments, walls, keys, stars_list):
         if not self.alive:
             return
+        grav_sign     = -1 if self.gravity_flipped else 1
+        was_on_ground = self.on_ground
+        self._handle_input(keys, grav_sign)
+        prev_y = self._apply_physics(grav_sign)
+        self._resolve_terrain_collision(segments, prev_y, was_on_ground, grav_sign)
+        self._handle_wall_collision(walls)
+        self._collect_stars(stars_list)
+        self._update_animation()
+        if self.invincible_timer > 0:
+            self.invincible_timer -= 1
+        if self.y > SCREEN_H + 100 or self.y < -100:
+            self.lives = 0
+            self.alive = False
+            self.events.add('die')
 
-        grav_sign = -1 if self.gravity_flipped else 1   # +1 = down, -1 = up
-
-        # Determine run/walk
+    def _handle_input(self, keys, grav_sign):
         shift = keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
         speed = RUN_SPEED if shift else MOVE_SPEED
-
-        # Horizontal input (controls unchanged regardless of gravity direction)
-        moving = False
         if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
             self.vx = speed
             self.facing_right = True
             self.running = shift
-            moving = True
         elif keys[pygame.K_LEFT] or keys[pygame.K_a]:
             self.vx = -speed * 0.75
             self.facing_right = False
             self.running = shift
-            moving = True
         else:
             self.vx *= 0.82
             self.running = False
-
-        # Jump (away from line, direction depends on gravity)
         if (keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]) and self.on_ground:
             self.vy = JUMP_FORCE * grav_sign   # JUMP_FORCE=-13.5; flipped → +13.5
             self.on_ground = False
-            self.ev_jump = True
+            self.events.add('jump')
 
-        was_on_ground = self.on_ground
-
-        # Gravity (pulls toward whichever side the line is on)
+    def _apply_physics(self, grav_sign):
+        """Apply gravity and integrate position. Returns prev_y before integration."""
         self.vy += GRAVITY * grav_sign
-
-        prev_y = self.y
-
-        # Integrate
+        prev_y  = self.y
         self.x += self.vx
         self.y += self.vy
-
-        # ── Terrain collision ─────────────────────────────────────────────────
         self.on_ground = False
+        return prev_y
 
-        if not self.gravity_flipped:
-            # Normal: land on TOP of line (char.y moves down to meet gy)
-            best_gy   = float('inf')
-            best_line = None
-            for seg in segments:
-                margin = 4
-                if not (seg.contains_x(self.x) or seg.contains_x(self.x - margin) or seg.contains_x(self.x + margin)):
-                    continue
-                cx = max(seg.x1, min(seg.x2, self.x))
-                gy = seg.y_at(cx)
-                swept  = prev_y <= gy + 1 and self.y >= gy - 1
-                follow = was_on_ground and (self.y - gy) <= 20 and (gy - self.y) <= 10
-                if (swept or follow) and self.vy >= 0:
-                    if gy < best_gy:
-                        best_gy = gy; best_line = seg
-            if best_line is not None and self.vy >= 0:
-                force = self.vy * 0.30 + 0.40
-                best_line.apply_force(self.x, force)
-                self.y  = best_gy
-                self.vy = 0.0
-                self.on_ground = True
-                if not was_on_ground:
-                    self.ev_land = True
-        else:
-            # Flipped: attach to UNDERSIDE of line (char.y moves up to meet gy)
-            best_gy   = float('-inf')
-            best_line = None
-            for seg in segments:
-                margin = 4
-                if not (seg.contains_x(self.x) or seg.contains_x(self.x - margin) or seg.contains_x(self.x + margin)):
-                    continue
-                cx = max(seg.x1, min(seg.x2, self.x))
-                gy = seg.y_at(cx)
-                swept  = prev_y >= gy - 1 and self.y <= gy + 1
-                follow = was_on_ground and (gy - self.y) <= 20 and (self.y - gy) <= 10
-                if (swept or follow) and self.vy <= 0:
-                    if gy > best_gy:
-                        best_gy = gy; best_line = seg
-            if best_line is not None and self.vy <= 0:
-                force = abs(self.vy) * 0.30 + 0.40
-                best_line.apply_force(self.x, -force)   # push upward
-                self.y  = best_gy
-                self.vy = 0.0
-                self.on_ground = True
-                if not was_on_ground:
-                    self.ev_land = True
+    def _resolve_terrain_collision(self, segments, prev_y, was_on_ground, grav_sign):
+        """Unified terrain collision for both normal and flipped gravity.
 
-        # ── Wall collision ────────────────────────────────────────────────────
+        grav_sign = +1: land on top of line (standard).
+        grav_sign = -1: attach to underside of line (flipped).
+        """
+        best_gy   = grav_sign * float('inf')   # +inf (normal) / -inf (flipped)
+        best_line = None
+        for seg in segments:
+            if not (seg.contains_x(self.x)
+                    or seg.contains_x(self.x - COLLISION_MARGIN)
+                    or seg.contains_x(self.x + COLLISION_MARGIN)):
+                continue
+            cx = max(seg.x1, min(seg.x2, self.x))
+            gy = seg.y_at(cx)
+            # swept: was on one side of line, now on the other (or at it)
+            swept  = (grav_sign * (prev_y - gy) <= 1
+                      and grav_sign * (self.y - gy) >= -1)
+            # follow: already grounded and still close enough to the line
+            follow = (was_on_ground
+                      and grav_sign * (self.y - gy) <= GROUND_FOLLOW_DOWN
+                      and grav_sign * (gy - self.y) <= GROUND_FOLLOW_UP)
+            if (swept or follow) and self.vy * grav_sign >= 0:
+                if grav_sign * gy < grav_sign * best_gy:
+                    best_gy, best_line = gy, seg
+        if best_line is not None and self.vy * grav_sign >= 0:
+            force = abs(self.vy) * SPRING_FORCE_MULT + SPRING_FORCE_BASE
+            best_line.apply_force(self.x, grav_sign * force)
+            self.y  = best_gy
+            self.vy = 0.0
+            self.on_ground = True
+            if not was_on_ground:
+                self.events.add('land')
+
+    def _handle_wall_collision(self, walls):
         for wall in walls:
             wx, wy, ww, wh = wall
             char_left  = self.x - self.CHAR_W
             char_right = self.x + self.CHAR_W
             if self.gravity_flipped:
-                char_top = self.y               # contact at top when flipped
+                char_top = self.y
                 char_bot = self.y + self.CHAR_H
             else:
                 char_top = self.y - self.CHAR_H
-                char_bot = self.y               # contact at bottom normally
-
+                char_bot = self.y
             wall_right = wx + ww
             wall_bot   = wy + wh
-
             if char_right > wx and char_left < wall_right and char_bot > wy and char_top < wall_bot:
                 overlap_r = char_right - wx
                 overlap_l = wall_right - char_left
@@ -200,15 +204,15 @@ class Character:
                     self.x += overlap_l
                     self.vx = 0
 
-        # ── Star collection ───────────────────────────────────────────────────
+    def _collect_stars(self, stars_list):
         for star in stars_list[:]:
             sx, sy = star
-            if abs(self.x - sx) < 24 and abs(self.y - sy) < 60:
+            if abs(self.x - sx) < STAR_COLLECT_RX and abs(self.y - sy) < STAR_COLLECT_RY:
                 stars_list.remove(star)
                 self.stars_collected += 1
-                self.ev_star = True
+                self.events.add('star')
 
-        # ── Walk / idle animation ─────────────────────────────────────────────
+    def _update_animation(self):
         if self.on_ground and abs(self.vx) > 0.5:
             tick_rate = 5 if self.running else 8
             self.walk_timer += 1
@@ -216,7 +220,7 @@ class Character:
                 self.walk_timer = 0
                 self.walk_frame = (self.walk_frame + 1) % 8
                 if self.walk_frame in (0, 2, 4, 6):
-                    self.ev_step = True
+                    self.events.add('step')
             self.idle_timer = 0
             self.idle_frame = 0
         elif self.on_ground:
@@ -225,28 +229,6 @@ class Character:
             if self.idle_timer >= 10:
                 self.idle_timer = 0
                 self.idle_frame = (self.idle_frame + 1) % 8
-
-        # ── Invincibility countdown ───────────────────────────────────────────
-        if self.invincible_timer > 0:
-            self.invincible_timer -= 1
-
-        # ── Death ─────────────────────────────────────────────────────────────
-        if self.y > SCREEN_H + 100 or self.y < -100:
-            self.lives = 0
-            self.alive = False
-            self.ev_die = True
-
-    def take_damage(self):
-        """Called by the main loop when an enemy hits the player."""
-        if self.invincible_timer > 0:
-            return
-        self.lives -= 1
-        self.ev_hit = True
-        if self.lives <= 0:
-            self.alive   = False
-            self.ev_die  = True
-        else:
-            self.invincible_timer = 100   # ~1.7 s of invincibility
 
     # ── Sprite management ─────────────────────────────────────────────────────
 
