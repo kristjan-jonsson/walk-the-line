@@ -1,0 +1,41 @@
+{
+  "name": "Hard",
+  "description": "Aggressive difficulty: narrow platforms, deep hills, wide gaps, frequent enemies and walls.",
+
+  "opening": [
+    {"type": "flat",  "length": 150},
+    {"type": "star"},
+    {"type": "gap",   "width": 65, "approach": 60, "landing": 60},
+    {"type": "flat",  "length": 80}
+  ],
+
+  "generation": {
+    "min_y": 160,
+    "max_y": 500,
+    "star_every": 500,
+    "gap_max": 115,
+    "difficulty_distance": 3000,
+    "first_flip_x": 1500,
+    "flip_interval": [900, 1500],
+    "flip_approach": [80, 130],
+    "flip_landing":  [80, 130],
+    "wall_chance":   0.45,
+    "enemy_chance":  0.50,
+    "chunk_weights": {
+      "flat":      [2, 1],
+      "hill":      3,
+      "valley":    3,
+      "ramp_up":   3,
+      "ramp_down": 3,
+      "gap":       [3, 8]
+    },
+    "chunk_params": {
+      "flat":      {"length": [50, 120]},
+      "hill":      {"up_len": [80, 180], "peak_len": [40, 80], "down_len": [80, 180]},
+      "valley":    {"down_len": [60, 130], "floor_len": [40, 80], "up_len": [60, 130]},
+      "ramp_up":   {"length": [100, 200], "flat": [40, 90]},
+      "ramp_down": {"length": [100, 200], "flat": [40, 90]},
+      "gap":       {"approach": [60, 120], "landing": [50, 100], "width_base": [65, 90], "width_scale": [30, 45]}
+    }
+  }
+}

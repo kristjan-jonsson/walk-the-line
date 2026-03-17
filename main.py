@@ -328,6 +328,14 @@ class Game:
     _MUSIC_VOLUME  = 0.55
     _INTRO_FRAMES  = 60      # fade-in duration in frames
 
+    # Level progression: (json path, stars needed to advance to next level)
+    # The last entry has no threshold (None = play forever).
+    _LEVEL_SEQUENCE = [
+        ("levels/easy.json",    10),
+        ("levels/default.json", 25),
+        ("levels/hard.json",    None),
+    ]
+
     def __init__(self):
         self.screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
         pygame.display.set_caption("Walk the Line")
@@ -345,16 +353,54 @@ class Game:
     # ── setup / reset ────────────────────────────────────────────────────────
 
     def _reset(self):
-        self.gen      = LevelGenerator()
-        self.char     = Character(60, self.gen.segments[0].y1)
-        self.clouds   = CloudSystem()
-        self.enemies  = []
-        self.camera_x = 0.0
-        self.state    = "playing"   # playing | dead
-        self.tick     = 0
-        self.bg_color = list(self.BG_PALETTE[0])
-        self.particles  = []
-        self.hand_alpha = 0
+        self._level_idx   = 0
+        level_path        = self._LEVEL_SEQUENCE[0][0]
+        self.gen          = LevelGenerator.from_file(level_path)
+        self.char         = Character(60, self.gen.segments[0].y1)
+        self.clouds       = CloudSystem()
+        self.enemies      = []
+        self.camera_x     = 0.0
+        self.state        = "playing"   # playing | dead
+        self.tick         = 0
+        self.bg_color     = list(self.BG_PALETTE[0])
+        self.particles    = []
+        self.hand_alpha   = 0
+
+    # ── level progression ────────────────────────────────────────────────────
+
+    def _check_level_transition(self):
+        """Advance to the next level when the star threshold is reached."""
+        _, threshold = self._LEVEL_SEQUENCE[self._level_idx]
+        if threshold is None:
+            return   # final level – play forever
+        if self.char.stars_collected >= threshold:
+            self._level_idx += 1
+            next_path, _ = self._LEVEL_SEQUENCE[self._level_idx]
+            self._transition_level(next_path)
+
+    def _transition_level(self, path):
+        """Swap in a new LevelGenerator continuing from the end of existing terrain.
+        Old segments/walls/stars still on screen are carried over seamlessly."""
+        # Start new generation from the tip of existing terrain so no overlap occurs
+        tip_seg = max(self.gen.segments, key=lambda s: s.x2)
+        tip_x   = tip_seg.x2
+        tip_y   = tip_seg.y2
+
+        # Count pending flip triggers between player and tip_x to determine
+        # the correct gravity state at the point where new generation starts.
+        flips_ahead = sum(1 for fx in self.gen.flip_triggers
+                          if self.char.x < fx <= tip_x)
+        tip_gravity = self.char.gravity_flipped ^ (flips_ahead % 2 == 1)
+
+        new_gen = LevelGenerator.from_file(path, start_x=tip_x, start_y=tip_y,
+                                            gravity_flipped=tip_gravity)
+        # Carry over everything already rendered; new gen provides what comes next
+        new_gen.segments      = self.gen.segments      + new_gen.segments
+        new_gen.walls         = self.gen.walls         + new_gen.walls
+        new_gen.stars         = self.gen.stars         + new_gen.stars
+        new_gen.flip_triggers = self.gen.flip_triggers + new_gen.flip_triggers
+        self.gen     = new_gen
+        self.enemies = []
 
     # ── event handling ───────────────────────────────────────────────────────
 
@@ -442,7 +488,7 @@ class Game:
     def update(self, keys):
         if self.state == "playing" and self.intro_done:
             self.gen.update(self.char.x)
-            self.clouds.update(self.char.x)
+            self.clouds.update(self.char.x, self.camera_x)
             for seg in self.gen.segments:
                 seg.update()
             self.char.update(self.gen.segments, self.gen.walls, keys, self.gen.stars)
@@ -458,6 +504,8 @@ class Game:
                 self.state = "dead"
                 self.hand_alpha = 0
                 self._spawn_death_particles()
+            else:
+                self._check_level_transition()
 
         self._update_particles()
 
