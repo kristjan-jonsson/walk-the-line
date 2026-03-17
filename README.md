@@ -27,6 +27,35 @@ The game is automatically built and deployed to GitHub Pages on every push to `m
 | `M` | Mute music |
 | `Escape` | Quit (desktop only) |
 
+## Contributing
+
+Contributions are welcome! Please read `CONTRIBUTING.md` for setup instructions and the recommended workflow.
+
+**License note:** By submitting a pull request or otherwise contributing to this repository, you agree that your contributions will be licensed under the project's **Apache License 2.0** (see `LICENSE`).
+
+## TODO / Good first tasks
+
+If you’re looking for something to work on, here are some small, self-contained ideas:
+
+- **Music & audio**
+  - Add additional background music tracks and a simple in-game track selector.
+  - Add sound effects (jump, land, collect star, hit obstacle) and volume controls.
+  - Improve the mute behavior (e.g., persist mute setting).
+
+- **More levels / level design**
+  - Add more JSON level configs under `levels/` (theme packs like "easy", "hard", "night", etc.).
+  - Add new scripted openings for levels.
+  - Add new chunk types (e.g., short staircase, moving platforms, breakable segments).
+
+- **Gameplay polish**
+  - Improve enemy variety and spawn patterns.
+  - Add additional obstacle types besides walls.
+  - Add difficulty scaling tweaks and balancing.
+
+- **Developer experience**
+  - Improve documentation for building/running.
+  - Add small tools/scripts for validating level JSON files.
+
 ## Run locally (desktop)
 
 ### Using uv (recommended)
