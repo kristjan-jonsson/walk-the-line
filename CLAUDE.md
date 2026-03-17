@@ -74,7 +74,7 @@ uv run -m http.server -d build/web 8000
 
 ### Character & Game State
 
-**character.py** — Player character MrLinea:
+**character.py** — Player character:
 - Position, velocity, gravity state (normal/flipped)
 - Jump mechanics, ground detection
 - Star collection tracking and damage system (3 lives)
