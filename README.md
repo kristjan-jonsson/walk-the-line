@@ -1,7 +1,9 @@
-# Walk the Line — La Linea
+# Walk the Line
 
-A browser-playable platformer inspired by Osvaldo Cavandoli's classic Italian animated TV series.
-Mr. Linea walks along a single white line that forms his entire world — jump over gaps and obstacles to reach the end!
+A minimalist browser-playable endless platformer where a single chalk line forms the entire world.
+Walk the line, jump over gaps and obstacles, and see how far you can go.
+
+This project is an original work and is not affiliated with any existing animated series or characters.
 
 ## Screenshot
 
@@ -33,7 +35,7 @@ The game is automatically built and deployed to GitHub Pages on every push to `m
 
 ```bash
 uv add pygame
-uv run python la_linea.py
+uv run main.py
 ```
 
 ## Build for the web (pygbag)
@@ -52,27 +54,6 @@ uv run -m pygbag --disable-sound-format-error [--width 960 --height 600] .
 ```
 
 Open http://localhost:8000 in your browser to play.
-
-
-### Why `pygbag.toml` matters
-
-pygbag scans the entire project directory when packaging. Without an ignore list it
-picks up files from the local virtual environment (e.g.
-`.venv/Lib/site-packages/pygame/examples/data/boom.wav`) and fails because it cannot
-package arbitrary WAV files from dependencies.
-
-The `pygbag.toml` at the repo root tells pygbag to skip `.venv` and other tooling
-directories so the build succeeds cleanly.
-
-### Cleaning build artifacts
-
-```bash
-# Linux / macOS
-rm -rf build/
-
-# Windows (PowerShell)
-Remove-Item -Recurse -Force build\
-```
 
 ## GitHub Actions deployment
 
