@@ -1,5 +1,5 @@
 """
-level.py – Endless procedural level generation for La Linea.
+level.py – Endless procedural level generation for Walk the Line.
 
 LevelGenerator streams terrain chunks ahead of the player on demand
 and prunes old geometry behind them.  Call gen.update(player_x) once

@@ -1,5 +1,5 @@
 """
-clouds.py – Chalk-sketch clouds and rain for La Linea.
+clouds.py – Chalk-sketch clouds and rain for Walk the Line.
 
 Clouds are drawn as overlapping circle outlines (no fill), matching the
 minimalist white line-art style of the rest of the game.  Rain is short

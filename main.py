@@ -1,7 +1,7 @@
 """
-La Linea - A game inspired by the Italian animated TV series by Osvaldo Cavandoli.
+Walk the Line - A minimalist endless platformer.
 
-Mr. Linea walks along a single white line that forms his entire world.
+The character walks along a single white line that forms their entire world.
 Jump over gaps and obstacles to reach the end!
 
 Controls:
@@ -23,7 +23,7 @@ import array
 from constants   import SCREEN_W, SCREEN_H, FPS, JUMP_FORCE
 from spring_line import SpringLine
 from level       import LevelGenerator
-from character   import MrLinea
+from character   import Character
 from clouds      import CloudSystem
 from enemies     import Enemy, draw_hearts
 
@@ -303,7 +303,7 @@ def draw_flip_triggers(surface, flip_triggers, segments, cam_x, t):
 
 async def main():
     screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
-    pygame.display.set_caption("La Linea")
+    pygame.display.set_caption("Walk the Line")
     clock = pygame.time.Clock()
 
     sounds     = SoundEngine()
@@ -324,7 +324,7 @@ async def main():
 
     def new_game():
         gen    = LevelGenerator()
-        char   = MrLinea(60, gen.segments[0].y1)
+        char   = Character(60, gen.segments[0].y1)
         clouds = CloudSystem()
         return gen, char, clouds, []   # enemies start empty
 
@@ -520,7 +520,7 @@ async def main():
             fade_alpha = int(255 * intro_ticks / 60)
             fade.set_alpha(fade_alpha)
             screen.blit(fade, (0, 0))
-            title = title_font.render("La Linea", True, WHITE)
+            title = title_font.render("Walk the Line", True, WHITE)
             screen.blit(title, (SCREEN_W // 2 - title.get_width() // 2, SCREEN_H // 2 - 20))
 
         pygame.display.flip()

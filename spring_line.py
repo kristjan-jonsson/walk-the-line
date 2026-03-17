@@ -1,5 +1,5 @@
 """
-spring_line.py – SpringLine terrain physics for La Linea.
+spring_line.py – SpringLine terrain physics for Walk the Line.
 
 A SpringLine is a chain of physics nodes that form the game's terrain.
 Each node springs back to its rest height and is coupled to its neighbours,

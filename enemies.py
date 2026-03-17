@@ -1,5 +1,5 @@
 """
-enemies.py – Chalk-art enemies and heart HUD for La Linea.
+enemies.py – Chalk-art enemies and heart HUD for Walk the Line.
 
 Enemies patrol the terrain line and chase the player when close.
 Contact costs the player a life.  The player can stomp an enemy by

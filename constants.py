@@ -1,4 +1,4 @@
-"""Shared constants used across all La Linea modules."""
+"""Shared constants used across all Walk the Line modules."""
 
 SCREEN_W   = 960
 SCREEN_H   = 600

@@ -1,7 +1,7 @@
 """
-character.py – Mr. Linea player character.
+character.py – player character.
 
-MrLinea handles physics, collision, animation, and drawing.
+Character handles physics, collision, animation, and drawing.
 Call char.update(...) once per frame; read sound-event flags
 (ev_jump, ev_land, ev_step, ev_star, ev_die) each frame then clear them.
 
@@ -47,7 +47,7 @@ RUN_SPEED = MOVE_SPEED * 1.8
 
 # ── Character class ───────────────────────────────────────────────────────────
 
-class MrLinea:
+class Character:
     """Profile sprite character with physics, collision, and animation."""
 
     CHAR_H = 54   # feet-to-crown height (collision geometry)
