@@ -54,6 +54,11 @@ class LevelGenerator:
         self._extend_to(player_x + self.LOOKAHEAD)
         self._prune_before(player_x - self.PRUNE_BEHIND)
 
+    def take_enemy_spawns(self):
+        """Return and clear all pending enemy spawn points."""
+        spawns, self.enemy_spawns = self.enemy_spawns, []
+        return spawns
+
     # ── internal: book-keeping ────────────────────────────────────────────
 
     def _extend_to(self, target_x):
