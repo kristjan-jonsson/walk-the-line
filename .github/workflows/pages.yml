@@ -36,7 +36,11 @@ jobs:
 
       - name: Build with pygbag
 <<<<<<< HEAD
+<<<<<<< HEAD
         run: uv run python -m pygbag --build --disable-sound-format-error --width 960 --height 600 main.py
+=======
+        run: python -m pygbag --build --width 960 --height 600 la_linea.py
+>>>>>>> parent of e9b035d (Change build script to use main.py instead of la_linea.py)
 =======
         run: python -m pygbag --build --width 960 --height 600 la_linea.py
 >>>>>>> parent of e9b035d (Change build script to use main.py instead of la_linea.py)
