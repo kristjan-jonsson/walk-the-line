@@ -297,6 +297,98 @@ def draw_flip_triggers(surface, flip_triggers, segments, cam_x, t):
         pygame.draw.polygon(surface, col, [(sx, ay), (sx - 7, ay - 14), (sx + 7, ay - 14)], 2)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Touch controls (mobile / web)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TouchControls:
+    """On-screen D-pad buttons for touch/mobile play.
+
+    Three buttons are drawn at the bottom of the screen:
+        Left (←)  Right (→)  on the left side
+        Jump (▲)              on the right side
+
+    FINGERDOWN/UP/MOTION events update boolean flags (left, right, jump)
+    which MergedKeys overlays on top of the keyboard state each frame.
+    """
+
+    _BTN_W = 110
+    _BTN_H = 100
+
+    def __init__(self):
+        self.left  = False
+        self.right = False
+        self.jump  = False
+        self._fingers: dict = {}   # finger_id -> button name or None
+
+        btn_y = SCREEN_H - 115
+        self.left_rect  = pygame.Rect(10,             btn_y, self._BTN_W, self._BTN_H)
+        self.right_rect = pygame.Rect(130,            btn_y, self._BTN_W, self._BTN_H)
+        self.jump_rect  = pygame.Rect(SCREEN_W - 120, btn_y, self._BTN_W, self._BTN_H)
+
+    # ── event handling ───────────────────────────────────────────────────────
+
+    def process(self, event):
+        """Update button state from a pygame finger event."""
+        if event.type == pygame.FINGERDOWN:
+            x, y = int(event.x * SCREEN_W), int(event.y * SCREEN_H)
+            btn  = self._hit(x, y)
+            self._fingers[event.finger_id] = btn
+            if btn:
+                self._set(btn, True)
+
+        elif event.type == pygame.FINGERUP:
+            btn = self._fingers.pop(event.finger_id, None)
+            if btn and btn not in self._fingers.values():
+                self._set(btn, False)
+
+        elif event.type == pygame.FINGERMOTION:
+            x, y    = int(event.x * SCREEN_W), int(event.y * SCREEN_H)
+            old_btn = self._fingers.get(event.finger_id)
+            new_btn = self._hit(x, y)
+            if old_btn != new_btn:
+                still_held = {v for k, v in self._fingers.items() if k != event.finger_id}
+                if old_btn and old_btn not in still_held:
+                    self._set(old_btn, False)
+                self._fingers[event.finger_id] = new_btn
+                if new_btn:
+                    self._set(new_btn, True)
+
+    def _hit(self, x, y):
+        if self.left_rect.collidepoint(x, y):   return 'left'
+        if self.right_rect.collidepoint(x, y):  return 'right'
+        if self.jump_rect.collidepoint(x, y):   return 'jump'
+        return None
+
+    def _set(self, btn, val):
+        if   btn == 'left':  self.left  = val
+        elif btn == 'right': self.right = val
+        elif btn == 'jump':  self.jump  = val
+
+    # ── drawing ──────────────────────────────────────────────────────────────
+
+    def draw(self, screen):
+        pass  # buttons are invisible; touch zones still active
+
+
+class MergedKeys:
+    """Wraps pygame keyboard state and overlays TouchControls button state.
+
+    Passed to character.update() in place of pygame.key.get_pressed() so
+    that touch input drives the same code path as keyboard input.
+    """
+
+    def __init__(self, kb, touch: TouchControls):
+        self._kb    = kb
+        self._touch = touch
+
+    def __getitem__(self, key):
+        if self._touch.left  and key in (pygame.K_LEFT,  pygame.K_a):              return True
+        if self._touch.right and key in (pygame.K_RIGHT, pygame.K_d):              return True
+        if self._touch.right and key in (pygame.K_LSHIFT, pygame.K_RSHIFT):        return True
+        if self._touch.jump  and key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w): return True
+        return self._kb[key]
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Game
@@ -351,6 +443,7 @@ class Game:
         self.intro_ticks  = self._INTRO_FRAMES
         self.best_score   = hs.load()   # metres – persisted across sessions
         self.new_record   = False
+        self.touch        = TouchControls()
         self._reset()
 
     # ── setup / reset ────────────────────────────────────────────────────────
@@ -423,6 +516,12 @@ class Game:
                 if event.key == pygame.K_m:
                     self.music_muted = not self.music_muted
                     pygame.mixer.music.set_volume(0.0 if self.music_muted else self._MUSIC_VOLUME)
+            if event.type in (pygame.FINGERDOWN, pygame.FINGERUP, pygame.FINGERMOTION):
+                self.touch.process(event)
+                if event.type == pygame.FINGERDOWN and self.state == "dead":
+                    self._reset()
+                    if not self.music_muted:
+                        self.sounds.start_music()
         return True
 
     # ── update helpers ───────────────────────────────────────────────────────
@@ -553,11 +652,11 @@ class Game:
             rec_txt = self.font.render("★  NEW HIGH SCORE!  ★", True, STAR_COLOR)
             self.screen.blit(rec_txt, (SCREEN_W // 2 - rec_txt.get_width() // 2, SCREEN_H // 2 + 52))
             sub = self.font.render(
-                f"{score} m  ★ {self.char.stars_collected}    Press R to try again",
+                f"{score} m  ★ {self.char.stars_collected}    R or tap to restart",
                 True, (220, 220, 220))
         else:
             sub = self.font.render(
-                f"{score} m  ★ {self.char.stars_collected}    Best: {self.best_score} m    Press R to try again",
+                f"{score} m  ★ {self.char.stars_collected}    Best: {self.best_score} m    R or tap to restart",
                 True, (220, 220, 220))
         self.screen.blit(sub, (SCREEN_W // 2 - sub.get_width() // 2, SCREEN_H // 2 + 80))
 
@@ -591,6 +690,7 @@ class Game:
             self._draw_game_over()
         if not self.intro_done:
             self._draw_intro()
+        self.touch.draw(self.screen)
         pygame.display.flip()
 
     # ── game loop ────────────────────────────────────────────────────────────
@@ -604,7 +704,7 @@ class Game:
                 self.intro_ticks -= 1
                 if self.intro_ticks <= 0:
                     self.intro_done = True
-            keys    = pygame.key.get_pressed()
+            keys    = MergedKeys(pygame.key.get_pressed(), self.touch)
             running = self.handle_events()
             self.update(keys)
             self.draw()
