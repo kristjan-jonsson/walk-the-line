@@ -15,42 +15,6 @@ This is a small open-source pygame/pygbag game. Contributions of all sizes are w
 - **Fixes & improvements**: small refactors, performance improvements, readability, typing hints, etc.
 - **Content**: new levels, obstacles, sprites, sound effects, music.
 
-## Development setup (desktop)
-
-This project uses Python and `pygame-ce`.
-
-### Using uv (recommended)
-
-```bash
-uv add pygame
-uv run main.py
-```
-
-### Alternative: pip/venv
-
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-python main.py
-```
-
-## Web build (pygbag)
-
-```bash
-uv add pygame pygbag
-uv run -m pygbag --disable-sound-format-error .
-```
-
-Then open the local server output (typically http://localhost:8000).
-
-## Project structure (high level)
-
-- `main.py` — game loop and main entry point
-- `level.py` — level generation / level logic
-- `levels/` — level data
-- `assets/`, `sprites/`, `sound/` — game assets
-
 ## Contribution workflow
 
 1. **Fork** the repo
@@ -68,10 +32,6 @@ Then open the local server output (typically http://localhost:8000).
 - If you contribute third-party assets, you must include the asset's license and any required attribution in the PR description and/or in `CREDITS.md`.
 - Please add yourself to `CREDITS.md` in the same PR (name/handle + what you contributed).
 - If you add new gameplay features, include a short description in the PR.
-
-## Code style
-
-There isn’t a strict style guide yet. Please keep formatting consistent with the surrounding code.
 
 ## License
 
