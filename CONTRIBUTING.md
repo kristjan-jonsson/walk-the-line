@@ -15,12 +15,26 @@ This is a small open-source pygame/pygbag game. Contributions of all sizes are w
 - **Fixes & improvements**: small refactors, performance improvements, readability, typing hints, etc.
 - **Content**: new levels, obstacles, sprites, sound effects, music.
 
+## Running tests
+
+Before submitting a PR, make sure the tests pass. The easiest way is via Docker — no local SDL2 or virtual environment needed:
+
+```bash
+docker build -t walk-the-line .
+```
+
+Alternatively, with uv:
+
+```bash
+uv run -m pytest tests/ -v
+```
+
 ## Contribution workflow
 
 1. **Fork** the repo
 2. Create a feature branch: `git checkout -b my-change`
 3. Make your changes
-4. Run the game locally and ensure things still work
+4. Run the tests (see above) and ensure the game still works locally
 5. Commit with a descriptive message
 6. Open a Pull Request
 

@@ -58,6 +58,22 @@ If you’re looking for something to work on, here are some small, self-containe
 
 ## Run locally (desktop)
 
+### Using Docker
+
+If you don't want to install SDL2 or manage a virtual environment, you can build and test inside Docker:
+
+```bash
+docker build -t walk-the-line .
+```
+
+This runs the test suite and compiles the web build inside the container. To extract the build artifact:
+
+```bash
+docker run --rm -v ./build:/app/build walk-the-line
+```
+
+The web build will be in `build/web/`.
+
 ### Using uv (recommended)
 
 [uv](https://docs.astral.sh/uv/) manages the virtual environment automatically:
