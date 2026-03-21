@@ -65,6 +65,8 @@ Then open the local server output (typically http://localhost:8000).
 - Keep changes focused and easy to review.
 - Prefer small PRs over big rewrites.
 - If you add assets (images/audio), make sure you have the rights to share them.
+- If you contribute third-party assets, you must include the asset's license and any required attribution in the PR description and/or in `CREDITS.md`.
+- Please add yourself to `CREDITS.md` in the same PR (name/handle + what you contributed).
 - If you add new gameplay features, include a short description in the PR.
 
 ## Code style
@@ -74,3 +76,5 @@ There isn’t a strict style guide yet. Please keep formatting consistent with t
 ## License
 
 By contributing, you agree that your contributions will be licensed under the project’s Apache-2.0 license.
+
+This applies to all contributions, including (but not limited to) code, sprites/artwork, animations, audio (sound effects/music), and level/content files, unless explicitly stated otherwise.
