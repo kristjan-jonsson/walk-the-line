@@ -1,19 +1,21 @@
 """
-character.py – player character.
+character.py - player character.
 
 Character handles physics, collision, animation, and drawing.
 Call char.update(...) once per frame; read char.events (a set of strings)
 and clear it: char.events.clear(). Event names: 'jump', 'land', 'step',
 'star', 'hit', 'die'.
 
-Drawing uses PNG sprites from sprites/ :
-  fighter_walk_0009–0016  (8 frames) – normal walk
-  fighter_run_0017–0024   (8 frames) – run (hold Shift)
+Drawing uses SVG sprites from sprites/chalkman/ :
+  chalkman/walk/chalkman_walk1–8   (8 frames) - normal walk
+  chalkman/run/chalkman_run1-8     (8 frames) - run (hold Shift)
+  chalkman/idle/chalkman_idle1-8   (8 frames) - idle
+  chalkman/jump/chalkman_jump1-8   (8 frames) - jump
 
 gravity_flipped=True puts the character on the underside of the line:
   - gravity pulls upward, jump pushes downward
   - collision attaches from below
-  - sprites are pre-cached with all four facing × gravity combinations
+  - sprites are pre-cached with all four facing x gravity combinations
 """
 
 import os
@@ -26,26 +28,25 @@ from constants import (SCREEN_H, GRAVITY, JUMP_FORCE, MOVE_SPEED,
                        INVINCIBLE_FRAMES, STAR_COLLECT_RX, STAR_COLLECT_RY)
 
 # ── Sprite-sheet constants ────────────────────────────────────────────────────
-_SPRITE_DIR = os.path.join(os.path.dirname(str(__file__)), 'sprites')
+_SPRITE_DIR = os.path.join(os.path.dirname(str(__file__)), 'sprites', 'chalkman')
 
-# Scale 512×512 source images so the character is ~54 px tall (= CHAR_H).
-_SCALE  = 0.3125          # 512 → 160 px
-_SURF_W = 160
-_SURF_H = 160
+# Scale 256×256 source images so the character is ~69 px tall (content height at this scale).
+_SURF_W = 72
+_SURF_H = 72
 
 # Foot-anchor within the scaled surface (right-facing, normal gravity).
-# In original pixels: character x-centre ≈ 269, bottom ≈ 380.
-_FOOT_X = 84    # 269 * 0.3125 ≈ 84
-_FOOT_Y = 119   # 380 * 0.3125 ≈ 119
+# Chalkman sprites are 256×256; feet are at y=255 (very bottom), centre-x ≈ 123.
+_FOOT_X = 35    # 123 * (72/256) ≈ 35  (horizontal centre of feet)
+_FOOT_Y = 71    # 255 * (72/256) ≈ 71  (feet at bottom of sprite)
 
 # When gravity is flipped, the sprite is flipped vertically.
 # The foot (originally at _FOOT_Y from top) moves to _SURF_H - _FOOT_Y from top.
-_FOOT_Y_FLIP = _SURF_H - _FOOT_Y   # = 41
+_FOOT_Y_FLIP = _SURF_H - _FOOT_Y   # = 1
 
-_WALK_FILES = [f'fighter_walk_{i:04d}.png' for i in range(9,  17)]   # 8 frames
-_RUN_FILES  = [f'fighter_run_{i:04d}.png'  for i in range(17, 25)]  # 8 frames
-_IDLE_FILES = [f'fighter_Idle_{i:04d}.png' for i in range(1,   9)]  # 8 frames
-_JUMP_FILES = [f'fighter_jump_{i:04d}.png' for i in range(43, 48)]  # 5 frames
+_WALK_FILES = [f'walk/chalkman_walk{i}.png' for i in range(1, 9)]   # 8 frames (PNG: SVGs used xlink:href unsupported by NanoSVG)
+_RUN_FILES  = [f'run/chalkman_run{i}.svg'   for i in range(1, 9)]   # 8 frames
+_IDLE_FILES = [f'idle/chalkman_idle{i}.svg' for i in range(1, 9)]   # 8 frames
+_JUMP_FILES = [f'jump/chalkman_jump{i}.svg' for i in range(1, 9)]   # 8 frames
 
 RUN_SPEED = MOVE_SPEED * RUN_SPEED_MULT
 
@@ -75,9 +76,9 @@ class Character:
         self.lives           = 3
         self.invincible_timer = 0
         self.stars_collected = 0
-        # Event set – populated during update(), consumed and cleared by main loop
+        # Event set - populated during update(), consumed and cleared by main loop
         self.events: set = set()
-        # Sprite cache – populated lazily on first draw (needs display surface)
+        # Sprite cache - populated lazily on first draw (needs display surface)
         self._sprites = None
 
     # ── Public methods ────────────────────────────────────────────────────────

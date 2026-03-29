@@ -1,0 +1,7 @@
+256x256
+
+jump
+1 frame - getting ready to jump
+2-4 frames - jump (going up)
+5-7 frames - falling (going down)
+8 - landing
