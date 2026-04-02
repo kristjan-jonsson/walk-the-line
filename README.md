@@ -39,8 +39,6 @@ If you’re looking for something to work on, here are some small, self-containe
 
 - **Music & audio**
   - Add additional background music tracks and a simple in-game track selector.
-  - Add sound effects (jump, land, collect star, hit obstacle) and volume controls.
-  - Improve the mute behavior (e.g., persist mute setting).
 
 - **More levels / level design**
   - Add more JSON level configs under `levels/` (theme packs like "easy", "hard", "night", etc.).
@@ -50,11 +48,6 @@ If you’re looking for something to work on, here are some small, self-containe
 - **Gameplay polish**
   - Improve enemy variety and spawn patterns.
   - Add additional obstacle types besides walls.
-  - Add difficulty scaling tweaks and balancing.
-
-- **Developer experience**
-  - Improve documentation for building/running.
-  - Add small tools/scripts for validating level JSON files.
 
 ## Run locally (desktop)
 
