@@ -36,7 +36,7 @@ jobs:
         run: python -m pygbag --build --width 960 --height 600 main.py
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: build/web
 
